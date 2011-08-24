@@ -25,8 +25,15 @@ import Thrift.Transport.Framed
 import Thrift.Protocol.Binary
 import Network
 
+------------------------------------------------------------------------------
+-- | A round-robin pool of cassandra connections
+type CPool = Pool Cassandra Server
+
 
 type Server = (HostName, PortID)
+
+
+type KeySpace = String
 
 
 data Cassandra = Cassandra {
@@ -36,12 +43,21 @@ data Cassandra = Cassandra {
 }
 
 
+
+-- | Create a pool of connections to a cluster of Cassandra boxes
+--
+-- Each box in the cluster will get up to n connections. The pool will send
+-- queries in round-robin fashion to balance load on each box in the cluster.
 createCassandraPool 
   :: [Server]
+  -- ^ List of servers to connect to
   -> Int
+  -- ^ Max connections per server (n)
   -> NominalDiffTime
-  -> String
-  -> IO (Pool Cassandra Server)
+  -- ^ Kill each connection after this many seconds
+  -> KeySpace
+  -- ^ Each pool operates on a single KeySpace
+  -> IO CPool
 createCassandraPool servers n maxIdle ks = createPool cr dest n maxIdle servers
   where
     cr :: Server -> IO Cassandra
@@ -53,6 +69,11 @@ createCassandraPool servers n maxIdle ks = createPool cr dest n maxIdle servers
       return $ Cassandra h ft p
     dest h = hClose $ cHandle h
 
+
+------------------------------------------------------------------------------
+-- Generic pool functionality - might want to factor out one day
+--
+------------------------------------------------------------------------------
 
 newtype Pool a s = Pool { stripes :: TVar (Ring (Stripe a s)) }
 

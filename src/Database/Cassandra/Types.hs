@@ -1,4 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
 
 module Database.Cassandra.Types where
 
@@ -7,17 +9,10 @@ import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as LB
 import           Data.Int (Int32, Int64)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy.Encoding as LT
 import           Data.Time
 import           Data.Time.Clock.POSIX
 
 import qualified Database.Cassandra.Thrift.Cassandra_Types as C
-
-
-type ColumnFamily = String
 
 
 -- | A column selector/filter statement for queries.
@@ -27,11 +22,26 @@ type ColumnFamily = String
 data Selector = 
     All
   -- ^ Return everything in 'Row'
-  | ColNames [ByteString]
+  | ColNames [ColumnName]
   -- ^ Return specific columns or super-columns depending on the 'ColumnFamily'
-  | Range (Maybe ByteString) (Maybe ByteString) Order Int32
+  | SupNames ColumnName [ColumnName]
+  -- ^ When deleting specific columns in a super column
+  | Range (Maybe ColumnName) (Maybe ColumnName) Order Int32
   -- ^ Return a range of columns or super-columns
   deriving (Show)
+
+
+mkPredicate :: Selector -> C.SlicePredicate
+mkPredicate s = 
+  let
+    allRange = C.SliceRange (Just "") (Just "") (Just False) (Just 100)
+  in case s of
+    All -> C.SlicePredicate Nothing (Just allRange)
+    ColNames ks -> C.SlicePredicate (Just ks) Nothing
+    Range st end ord cnt -> 
+      C.SlicePredicate Nothing 
+        (Just (C.SliceRange st end (Just $ renderOrd ord) (Just cnt)))
+
 
 
 ------------------------------------------------------------------------------
@@ -43,22 +53,52 @@ renderOrd Regular = False
 renderOrd Reversed = True
 
 
-------------------------------------------------------------------------------
--- | Content Types
---
-------------------------------------------------------------------------------
+type ColumnFamily = String
 
+
+type Key = ByteString
+
+
+type ColumnName = ByteString
+
+
+type Value = ByteString
+
+
+------------------------------------------------------------------------------
+-- | A Column is either a single key-value pair or a SuperColumn with an
+-- arbitrary number of key-value pairs
+data Column = 
+    SuperColumn ColumnName [Column]
+  | Column {
+      colKey :: ColumnName
+    , colVal :: Value
+    , colTS :: Maybe Int64
+    -- ^ Last update timestamp; will be overridden during write/update ops
+    , colTTL :: Maybe Int32
+    -- ^ A TTL after which Cassandra will erase the column
+    }
+  deriving (Eq,Show,Read,Ord)
+
+
+------------------------------------------------------------------------------
+-- | A full row is simply a sequence of columns
 type Row = [Column]
 
 
-data Column = 
-    SuperColumn (ByteString, [Column])
-  | Column {
-      colKey :: ByteString
-    , colVal :: ByteString
-    , colTS :: Maybe Int64
-    }
-  deriving (Eq,Show,Read,Ord)
+------------------------------------------------------------------------------
+-- | A short-hand for creating key-value 'Column' values
+col :: ByteString -> ByteString -> Column
+col k v = Column k v Nothing Nothing
+
+
+mkThriftCol :: Column -> IO C.Column
+mkThriftCol Column{..} = do
+  now <- getTime
+  return $ C.Column (Just colKey) (Just colVal) (Just now) colTTL
+
+
+mkSuperColumn = undefined
 
 
 castColumn :: C.ColumnOrSuperColumn -> Either CassandraException Column
@@ -72,7 +112,8 @@ castCol c
   | Just nm <- C.f_Column_name c
   , Just val <- C.f_Column_value c
   , Just ts <- C.f_Column_timestamp c
-  = Right $ Column nm val (Just ts)
+  , ttl <- C.f_Column_ttl c
+  = Right $ Column nm val (Just ts) ttl
 castCol _ = Left $ ConversionException "Can't parse Column"
 
 
@@ -81,7 +122,7 @@ castSuperCol c
   | Just nm <- C.f_SuperColumn_name c
   , Just cols <- C.f_SuperColumn_columns c
   , Right cols' <- mapM castCol cols
-  = Right $ SuperColumn (nm, cols')
+  = Right $ SuperColumn nm cols'
 castSuperCol _ = Left $ ConversionException "Can't parse SuperColumn"
 
 
@@ -97,30 +138,11 @@ data CassandraException =
   deriving (Eq,Show,Read,Ord)
 
 
--- | Cassandra is VERY sensitive to its timestamp values.. as a convention,
+------------------------------------------------------------------------------
+-- | Cassandra is VERY sensitive to its timestamp values. As a convention,
 -- timestamps are always in microseconds
 getTime :: IO Int64
 getTime = do
   t <- getPOSIXTime
   return . fromIntegral . floor $ t * 1000000
 
-
-------------------------------------------------------------------------------
--- | Cassandra keys need to be 'ByteString's
-class (Ord a) => BS a where
-  bs :: a -> ByteString
-
-instance BS String where
-  bs = LB.pack 
-
-instance BS ByteString where
-  bs = id 
- 
-instance BS B.ByteString where
-  bs = LB.fromChunks . return 
-
-instance BS T.Text where
-  bs = bs . T.encodeUtf8
-
-instance BS LT.Text where
-  bs = LT.encodeUtf8
