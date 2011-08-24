@@ -93,10 +93,13 @@ getOne p k col cf cl = do
 ------------------------------------------------------------------------------
 -- | An arbitrary get operation - slice with 'Selector'
 get 
-  ::  CPool
+  :: CPool
   -> Key 
+  -- ^ Row key to get
   -> ColumnFamily 
+  -- ^ in ColumnFamily
   -> Selector 
+  -- ^ Slice columns with selector
   -> ConsistencyLevel 
   -> IO (Either CassandraException Row)
 get p k cf s cl = withPool p $ \ Cassandra{..} -> do
@@ -117,8 +120,11 @@ get p k cf s cl = withPool p $ \ Cassandra{..} -> do
 getMulti 
   ::  CPool
   -> [Key] 
+  -- ^ Multiple row keys to fetch in one hit
   -> ColumnFamily 
+  -- ^ in ColumnFamily
   -> Selector 
+  -- ^ Subject to selector conditions
   -> ConsistencyLevel 
   -> IO (Either CassandraException (Map ByteString Row))
 getMulti p k cf s cl = withPool p $ \ Cassandra{..} -> do

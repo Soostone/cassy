@@ -1,12 +1,27 @@
 Name:                cassy
 Version:             0.1
-Synopsis:            A high level driver for Cassandra datastore
+Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
 Author:              Ozgun Ataman
 Maintainer:          ozataman@gmail.com
 Category:            Data
 Build-type:          Simple
+description:
+  The objective is to completely isolate away the thrift layer, providing
+  a more idiomatic Haskell experience working with Cassandra.
+  .
+  Certain parts of the API was inspired by pycassa (Python client) and
+  hscassandra (on Hackage).
+  .
+  Potential TODOs include:
+  .
+  A JSON layer that encodes/decodes values as JSON
+  .
+  Support for counters and batch mutators
+  .
+  Support for database admin operations
+  
 
 -- Extra-source-files:  
 
