@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
 
 
-module Database.Cassandra.ColumnFamily 
+module Database.Cassandra.Basic 
 
 (
   -- * Basic Types
@@ -13,6 +13,7 @@ module Database.Cassandra.ColumnFamily
   , Column(..)
   , col
   , Row(..)
+  , ConsistencyLevel(..)
 
   -- * Filtering
   , Selector(..)
@@ -24,6 +25,8 @@ module Database.Cassandra.ColumnFamily
   -- * Connection
   , CPool
   , Server(..)
+  , defServer
+  , defServers
   , KeySpace(..)
   , createCassandraPool
 
@@ -68,7 +71,7 @@ test = do
   insert pool "test1" [col "col1" "val1", col "col2" "val2"] "CF1" ONE
   get pool "test1" "CF1" All ONE >>= putStrLn . show
   remove pool "test1" "CF1" (ColNames ["col2"]) ONE
-  get pool "test1" "CF1" All ONE >>= putStrLn . show
+  get pool "test1" "CF1" (Range Nothing Nothing Reversed 1) ONE >>= putStrLn . show
 
 
 ------------------------------------------------------------------------------

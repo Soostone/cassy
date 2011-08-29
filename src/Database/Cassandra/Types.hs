@@ -1,10 +1,13 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
 
 module Database.Cassandra.Types where
 
 import           Control.Monad
+import           Control.Exception
+import           Data.Generics
 import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as LB
@@ -39,8 +42,11 @@ mkPredicate s =
     All -> C.SlicePredicate Nothing (Just allRange)
     ColNames ks -> C.SlicePredicate (Just ks) Nothing
     Range st end ord cnt -> 
-      C.SlicePredicate Nothing 
-        (Just (C.SliceRange st end (Just $ renderOrd ord) (Just cnt)))
+      let
+        st' = maybe (Just "") Just st
+        end' = maybe (Just "") Just end
+      in C.SlicePredicate Nothing 
+          (Just (C.SliceRange st' end' (Just $ renderOrd ord) (Just cnt)))
 
 
 
@@ -135,7 +141,10 @@ data CassandraException =
   | AuthorizationException String
   | SchemaDisagreementException
   | ConversionException String
-  deriving (Eq,Show,Read,Ord)
+  deriving (Eq,Show,Read,Ord,Data,Typeable)
+
+
+instance Exception CassandraException
 
 
 ------------------------------------------------------------------------------

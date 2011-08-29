@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.1
+Version:             0.1.0.4
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -31,7 +31,7 @@ Cabal-version:       >=1.2
 Library
   hs-source-dirs: src
   Exposed-modules:
-    Database.Cassandra.ColumnFamily
+    Database.Cassandra.Basic
     Database.Cassandra.Pool
     Database.Cassandra.Types
   
@@ -44,6 +44,7 @@ Library
     , time
     , transformers
     , stm
+    , syb
 
     , Thrift >= 0.6
     , cassandra-thrift >= 0.8
