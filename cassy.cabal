@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.1.0.4
+Version:             0.1.0.5
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -32,6 +32,7 @@ Library
   hs-source-dirs: src
   Exposed-modules:
     Database.Cassandra.Basic
+    Database.Cassandra.Content
     Database.Cassandra.Pool
     Database.Cassandra.Types
   

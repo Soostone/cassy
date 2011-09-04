@@ -67,8 +67,8 @@ test = do
     let sp = T.SlicePredicate Nothing sr
     C.get_slice (cProto, cProto) "darak" cp sp ONE
   get pool "darak" "CF1" All ONE
-  getOne pool "darak" "eben" "CF1" ONE
-  insert pool "test1" [col "col1" "val1", col "col2" "val2"] "CF1" ONE
+  getOne pool "CF1" "darak" "eben" ONE
+  insert pool "CF1" "test1" ONE [col "col1" "val1", col "col2" "val2"] 
   get pool "test1" "CF1" All ONE >>= putStrLn . show
   remove pool "test1" "CF1" (ColNames ["col2"]) ONE
   get pool "test1" "CF1" (Range Nothing Nothing Reversed 1) ONE >>= putStrLn . show
@@ -77,16 +77,17 @@ test = do
 ------------------------------------------------------------------------------
 -- | Get a single key-column value
 getOne 
-  ::  CPool
+  :: CPool
+  -> ColumnFamily 
   -> Key 
   -- ^ Row key
   -> ColumnName
   -- ^ Column/SuperColumn name
-  -> ColumnFamily 
   -> ConsistencyLevel 
+  -- ^ Read quorum
   -> IO (Either CassandraException Column)
-getOne p k col cf cl = do
-  c <- get p k cf (ColNames [col]) cl
+getOne p cf k cn cl = do
+  c <- get p cf k (ColNames [cn]) cl
   case c of
     Left e -> return $ Left e
     Right [] -> return $ Left NotFoundException
@@ -97,15 +98,15 @@ getOne p k col cf cl = do
 -- | An arbitrary get operation - slice with 'Selector'
 get 
   :: CPool
-  -> Key 
-  -- ^ Row key to get
   -> ColumnFamily 
   -- ^ in ColumnFamily
+  -> Key 
+  -- ^ Row key to get
   -> Selector 
   -- ^ Slice columns with selector
   -> ConsistencyLevel 
   -> IO (Either CassandraException Row)
-get p k cf s cl = withPool p $ \ Cassandra{..} -> do
+get p cf k s cl = withPool p $ \ Cassandra{..} -> do
   res <- wrapException $ C.get_slice (cProto, cProto) k cp (mkPredicate s) cl
   case res of
     Left e -> return $ Left e
@@ -121,16 +122,16 @@ get p k cf s cl = withPool p $ \ Cassandra{..} -> do
 ------------------------------------------------------------------------------
 -- | Do multiple 'get's in one DB hit
 getMulti 
-  ::  CPool
+  :: CPool
+  -> ColumnFamily 
   -> [Key] 
   -- ^ Multiple row keys to fetch in one hit
-  -> ColumnFamily 
   -- ^ in ColumnFamily
   -> Selector 
   -- ^ Subject to selector conditions
   -> ConsistencyLevel 
   -> IO (Either CassandraException (Map ByteString Row))
-getMulti p k cf s cl = withPool p $ \ Cassandra{..} -> do
+getMulti p cf k s cl = withPool p $ \ Cassandra{..} -> do
   res <- wrapException $ C.multiget_slice (cProto, cProto) k cp (mkPredicate s) cl
   case res of
     Left e -> return $ Left e
@@ -152,12 +153,12 @@ getMulti p k cf s cl = withPool p $ \ Cassandra{..} -> do
 -- This will do as many round-trips as necessary to insert the full row.
 insert
   :: CPool
-  -> Key
-  -> Row
   -> ColumnFamily
+  -> Key
   -> ConsistencyLevel
+  -> Row
   -> IO (Either CassandraException ())
-insert p k row cf cl = withPool p $ \ Cassandra{..} -> do
+insert p cf k cl row = withPool p $ \ Cassandra{..} -> do
   let iOne c = do
                 c' <- mkThriftCol c
                 wrapException $ C.insert (cProto, cProto) k cp c' cl 
@@ -180,15 +181,15 @@ sequenceE (a:as) = do
 -- within a SuperColumn.
 remove 
   ::  CPool
-  -> Key
-  -- ^ Key to be deleted
   -> ColumnFamily
   -- ^ In 'ColumnFamily'
+  -> Key
+  -- ^ Key to be deleted
   -> Selector
   -- ^ Columns to be deleted
   -> ConsistencyLevel
   -> IO (Either CassandraException ())
-remove p k cf s cl = withPool p $ \ Cassandra {..} -> do
+remove p cf k s cl = withPool p $ \ Cassandra {..} -> do
   now <- getTime
   wrapException $ case s of
     All -> C.remove (cProto, cProto) k cpAll now cl
