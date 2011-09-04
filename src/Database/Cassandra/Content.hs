@@ -39,7 +39,7 @@ class Content a where
 -- | Possible outcomes of a modify operation 
 data ModifyOperation a = 
     Update a
-  | Delete a
+  | Delete
   | DoNothing
   deriving (Eq,Show,Ord,Read)
 
@@ -71,7 +71,7 @@ modify cp cf k cn rcl wcl f =
         ares@(Update a) -> do
           insert cp cf k wcl [col cn (toBS a)]
           return (ares, b)
-        ares@(Delete a) -> do
+        ares@(Delete) -> do
           remove cp cf k (ColNames [cn]) wcl
           return (ares, b)
         ares@(DoNothing) -> return (ares, b)
