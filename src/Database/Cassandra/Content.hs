@@ -1,6 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
 
+{-|
+    A higher level module for working with Cassandra.
+
+    Serialization and de-serialization of Column values are taken care of
+    automatically.
+
+-}
+
 module Database.Cassandra.Content 
 ( 
 
@@ -29,7 +37,7 @@ import           Database.Cassandra.Pool
 import           Database.Cassandra.Types
 
 ------------------------------------------------------------------------------
--- | A TypeClass for serializing any record to Cassandra
+-- | A typeclass for serializing any record to Cassandra
 class Content a where
   toBS    :: a -> ByteString
   fromBS  :: ByteString -> Maybe a
@@ -48,7 +56,10 @@ data ModifyOperation a =
 -- | A modify function that will fetch a specific column, apply modification
 -- function on it and save results back to Cassandra.
 --
--- A 'b' side value is returned for computational convenience
+-- A 'b' side value is returned for computational convenience.
+--
+-- This method may throw a 'CassandraException' for all exceptions other than
+-- 'NotFoundException'.
 modify
   :: Content a
   => CPool
@@ -81,11 +92,15 @@ modify cp cf k cn rcl wcl f =
       Left NotFoundException -> execF Nothing
       Left e -> throw e
       Right Column{..} -> execF (fromBS colVal)
-      Right SuperColumn{..} -> error "modify not implemented for SuperColumn"
+      Right SuperColumn{..} -> throw $ 
+        OperationNotSupported "modify not implemented for SuperColumn"
 
 
 ------------------------------------------------------------------------------
--- | Same as 'modify' but does not offer a side value
+-- | Same as 'modify' but does not offer a side value.
+--
+-- This method may throw a 'CassandraException' for all exceptions other than
+-- 'NotFoundException'.
 modify_
   :: Content a
   => CPool

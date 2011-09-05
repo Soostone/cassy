@@ -141,6 +141,7 @@ data CassandraException =
   | AuthorizationException String
   | SchemaDisagreementException
   | ConversionException String
+  | OperationNotSupported String
   deriving (Eq,Show,Read,Ord,Data,Typeable)
 
 
