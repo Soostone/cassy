@@ -18,6 +18,28 @@ import           Data.Time.Clock.POSIX
 import qualified Database.Cassandra.Thrift.Cassandra_Types as C
 
 
+-- | A 'Key' range selector to use with 'getMulti'.
+data KeySelector = 
+    Keys [Key]
+  -- ^ Just a list of keys to get
+  | KeyRange KeyRangeType Key Key Int32
+  -- ^ A range of keys to get. Remember that RandomPartitioner ranges may not
+  -- mean much as keys are randomly assigned to nodes.
+  deriving (Show)
+
+
+-- | Encodes the Key vs. Token options in the thrift API. 
+--
+-- 'InclusiveRange' ranges are just plain intuitive range queries.
+-- 'WrapAround' ranges are also inclusive, but they wrap around the ring.
+data KeyRangeType = InclusiveRange | WrapAround
+  deriving (Show)
+
+
+mkKeyRange (KeyRange ty st end cnt) = case ty of
+  InclusiveRange -> C.KeyRange (Just st) (Just end) Nothing Nothing (Just cnt)
+  WrapAround -> C.KeyRange Nothing Nothing (Just $ LB.unpack st) (Just $ LB.unpack end) (Just cnt)
+
 -- | A column selector/filter statement for queries.
 --
 -- Remember that SuperColumns are always fully deserialized, so we don't offer
@@ -104,13 +126,11 @@ mkThriftCol Column{..} = do
   return $ C.Column (Just colKey) (Just colVal) (Just now) colTTL
 
 
-mkSuperColumn = undefined
-
-
 castColumn :: C.ColumnOrSuperColumn -> Either CassandraException Column
 castColumn x | Just c <- C.f_ColumnOrSuperColumn_column x = castCol c
-castColumn x | Just c <- C.f_ColumnOrSuperColumn_super_column x = castSuperCol c
-castColumn _ = Left $ ConversionException "Unsupported ColumnOrSuperColumn type"
+             | Just c <- C.f_ColumnOrSuperColumn_super_column x = castSuperCol c
+castColumn _ = 
+  Left $ ConversionException "Unsupported/unexpected ColumnOrSuperColumn type"
 
 
 castCol :: C.Column -> Either CassandraException Column

@@ -18,6 +18,8 @@ module Database.Cassandra.Basic
   -- * Filtering
   , Selector(..)
   , Order(..)
+  , KeySelector(..)
+  , KeyRangeType(..)
 
   -- * Exceptions
   , CassandraException(..)
@@ -51,6 +53,7 @@ import           Database.Cassandra.Thrift.Cassandra_Types
                   (ConsistencyLevel(..))
 import           Data.Map (Map)
 import qualified Data.Map as M
+import           Data.Maybe (mapMaybe)
 import           Network
 import           Prelude hiding (catch)
 
@@ -124,26 +127,45 @@ get p cf k s cl = withPool p $ \ Cassandra{..} -> do
 getMulti 
   :: CPool
   -> ColumnFamily 
-  -> [Key] 
-  -- ^ Multiple row keys to fetch in one hit
-  -- ^ in ColumnFamily
+  -> KeySelector
+  -- ^ A selection of rows to fetch in one hit
   -> Selector 
-  -- ^ Subject to selector conditions
+  -- ^ Subject to column selector conditions
   -> ConsistencyLevel 
   -> IO (Either CassandraException (Map ByteString Row))
-getMulti p cf k s cl = withPool p $ \ Cassandra{..} -> do
-  res <- wrapException $ C.multiget_slice (cProto, cProto) k cp (mkPredicate s) cl
-  case res of
-    Left e -> return $ Left e
-    Right m -> return . Right $ M.mapMaybe f m
+  -- ^ A Map from Row keys to 'Row's is returned
+getMulti p cf ks s cl = withPool p $ \ Cassandra{..} -> do
+  case ks of
+    Keys xs -> do
+      res <- wrapException $ C.multiget_slice (cProto, cProto) xs cp (mkPredicate s) cl
+      case res of
+        Left e -> return $ Left e
+        Right m -> return . Right $ M.mapMaybe f m
+    KeyRange {} -> do
+      res <- wrapException $ 
+        C.get_range_slices (cProto, cProto) cp (mkPredicate s) (mkKeyRange ks) cl
+      case res of
+        Left e -> return $ Left e
+        Right res' -> return . Right $ collectKeySlices res'
   where
+    collectKeySlices :: [T.KeySlice] -> Map ByteString Row
+    collectKeySlices ks = M.fromList $ mapMaybe collectKeySlice ks
+      where 
+        f (k, Just x) = True
+        f _ = False
+        g (k, Just x) = (k,x)
+
+
+    collectKeySlice (T.KeySlice (Just k) (Just xs)) = 
+      case mapM castColumn xs of
+        Left _ -> Nothing
+        Right xs' -> Just (k, xs')
+    collectKeySlice _ = Nothing
+
     cp = T.ColumnParent (Just cf) Nothing
     f xs = 
-      let
-        cs = mapM castColumn xs
-      in case cs of
+      case mapM castColumn xs of
         Left _ -> Nothing
-        Right [] -> Nothing
         Right xs' -> Just xs'
 
 

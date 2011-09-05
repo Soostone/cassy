@@ -12,9 +12,11 @@
 module Database.Cassandra.Content 
 ( 
 
+  -- * Necessary Types
     Content(..)
   , ModifyOperation(..)
 
+  -- * Cassandra Operations
   , modify
   , modify_
 
