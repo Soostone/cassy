@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.1.0.8
+Version:             0.1.1.0
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -21,7 +21,8 @@ description:
   Support for counters and batch mutators
   .
   Support for database admin operations
-  
+  .
+  Support for composite column types  
 
 -- Extra-source-files:  
 
@@ -46,9 +47,13 @@ Library
     , transformers
     , stm
     , syb
+    , text
 
     , Thrift >= 0.6
     , cassandra-thrift >= 0.8
+
+  Extensions:
+      TypeSynonymInstances
   
   -- Modules not exported by this package.
   -- Other-modules:       

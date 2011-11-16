@@ -24,7 +24,9 @@ module Database.Cassandra.Content
 
 import           Control.Exception
 import           Control.Monad
-import           Data.ByteString.Lazy (ByteString)
+import           Data.ByteString.Lazy.Char8 (ByteString)
+import qualified Data.ByteString.Lazy.Char8 as LB
+import qualified Data.ByteString.Char8 as B
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
 import qualified Database.Cassandra.Thrift.Cassandra_Types as T
 import           Database.Cassandra.Thrift.Cassandra_Types 
@@ -33,16 +35,47 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Network
 import           Prelude hiding (catch)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.Encoding as LT
 
 import           Database.Cassandra.Basic
 import           Database.Cassandra.Pool
 import           Database.Cassandra.Types
+
+
+-------------------------------------------------------------------------------
+---- Content Typeclass
+-------------------------------------------------------------------------------
+
 
 ------------------------------------------------------------------------------
 -- | A typeclass for serializing any record to Cassandra
 class Content a where
   toBS    :: a -> ByteString
   fromBS  :: ByteString -> Maybe a
+
+
+instance Content String where
+    toBS = LB.pack
+    fromBS = Just . LB.unpack
+
+instance Content LT.Text where
+    toBS = LT.encodeUtf8
+    fromBS = Just . LT.decodeUtf8
+
+instance Content T.Text where
+    toBS = toBS . LT.fromChunks . return
+    fromBS = fmap (T.concat . LT.toChunks) . fromBS
+
+instance Content B.ByteString where
+    toBS = LB.fromChunks . return
+    fromBS = fmap (B.concat . LB.toChunks) . fromBS
+
+instance Content ByteString where
+    toBS = id
+    fromBS = Just . id 
 
 
 ------------------------------------------------------------------------------
@@ -63,10 +96,10 @@ data ModifyOperation a =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify
-  :: Content a
+  :: (Content k, Content a)
   => CPool
   -> ColumnFamily
-  -> Key
+  -> k
   -> ColumnName
   -> ConsistencyLevel
   -- ^ Read quorum
@@ -78,18 +111,19 @@ modify
   -> IO (ModifyOperation a, b)
 modify cp cf k cn rcl wcl f = 
   let
+    k' = toBS k
     execF prev = do
       (fres, b) <- f prev
       case fres of
         ares@(Update a) -> do
-          insert cp cf k wcl [col cn (toBS a)]
+          insert cp cf k' wcl [col cn (toBS a)]
           return (ares, b)
         ares@(Delete) -> do
-          remove cp cf k (ColNames [cn]) wcl
+          remove cp cf k' (ColNames [cn]) wcl
           return (ares, b)
         ares@(DoNothing) -> return (ares, b)
   in do
-    res <- getOne cp cf k cn rcl
+    res <- getOne cp cf k' cn rcl
     case res of
       Left NotFoundException -> execF Nothing
       Left e -> throw e
@@ -104,10 +138,10 @@ modify cp cf k cn rcl wcl f =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify_
-  :: Content a
+  :: (Content k, Content a)
   => CPool
   -> ColumnFamily
-  -> Key
+  -> k
   -> ColumnName
   -> ConsistencyLevel
   -- ^ Read quorum
