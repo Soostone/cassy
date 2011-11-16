@@ -6,6 +6,10 @@
 
     Serialization and de-serialization of Column values are taken care of
     automatically.
+    
+    Also, this module currently attempts to reduce verbosity by
+    throwing errors instead of returning Either types as in the
+    'Database.Cassandra.Basic' module.
 
 -}
 
@@ -17,6 +21,7 @@ module Database.Cassandra.Content
   , ModifyOperation(..)
 
   -- * Cassandra Operations
+  , insertCol
   , modify
   , modify_
 
@@ -89,9 +94,13 @@ data ModifyOperation a =
 
 ------------------------------------------------------------------------------
 -- | A modify function that will fetch a specific column, apply modification
--- function on it and save results back to Cassandra.
+-- function on it and save results back to Cassandra. 
 --
 -- A 'b' side value is returned for computational convenience.
+--
+-- This is intended to be a workhorse function, in that you should be
+-- able to do all kinds of relatively straightforward operations just
+-- using this function.
 --
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
@@ -109,19 +118,21 @@ modify
   -- ^ Modification function. Called with 'Just' the value if present,
   -- 'Nothing' otherwise.
   -> IO (ModifyOperation a, b)
+  -- ^ Return the decided 'ModifyOperation' and its execution outcome
 modify cp cf k cn rcl wcl f = 
   let
     k' = toBS k
     execF prev = do
       (fres, b) <- f prev
-      case fres of
-        ares@(Update a) -> do
+      dbres <- case fres of
+        (Update a) ->
           insert cp cf k' wcl [col cn (toBS a)]
-          return (ares, b)
-        ares@(Delete) -> do
+        (Delete) ->
           remove cp cf k' (ColNames [cn]) wcl
-          return (ares, b)
-        ares@(DoNothing) -> return (ares, b)
+        (DoNothing) -> return $ Right ()
+      case dbres of
+        Left e -> throw e -- Modify op returned error; throw it
+        Right _ -> return (fres, b)
   in do
     res <- getOne cp cf k' cn rcl
     case res of
@@ -159,3 +170,16 @@ modify_ cp cf k cn rcl wcl f =
   in do
   (op, _) <- modify cp cf k cn rcl wcl f'
   return op
+
+
+-------------------------------------------------------------------------------
+-- Simple insertion function making use of the 'Content' typeclass
+insertCol
+    :: (Content k, Content a)
+    => CPool -> ColumnFamily 
+    -> k -- ^ Row Key
+    -> ColumnName
+    -> ConsistencyLevel
+    -> a -- ^ Content
+    -> IO (Either CassandraException ())
+insertCol cp cf k cn cl a = insert cp cf (toBS k) cl [col cn (toBS a)]
