@@ -33,7 +33,7 @@ Library
   hs-source-dirs: src
   Exposed-modules:
     Database.Cassandra.Basic
-    Database.Cassandra.Content
+    Database.Cassandra.JSON
     Database.Cassandra.Pool
     Database.Cassandra.Types
   
@@ -48,6 +48,8 @@ Library
     , stm
     , syb
     , text
+    , attoparsec
+    , aeson
 
     , Thrift >= 0.6
     , cassandra-thrift >= 0.8

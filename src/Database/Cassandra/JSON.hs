@@ -1,11 +1,17 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
+{-# LANGUAGE PatternGuards, 
+             NamedFieldPuns, 
+             OverloadedStrings,
+             TypeSynonymInstances, 
+             RecordWildCards #-}
 
 {-|
     A higher level module for working with Cassandra.
+    
+    Row and Column keys can be any string-like type implementing the
+    CKey typeclass. You can add your own types by defining new instances
 
     Serialization and de-serialization of Column values are taken care of
-    automatically.
+    automatically using the ToJSON and FromJSON typeclasses.
     
     Also, this module currently attempts to reduce verbosity by
     throwing errors instead of returning Either types as in the
@@ -13,11 +19,11 @@
 
 -}
 
-module Database.Cassandra.Content 
+module Database.Cassandra.JSON 
 ( 
 
   -- * Necessary Types
-    Content(..)
+    CKey(..)
   , ModifyOperation(..)
 
   -- * Cassandra Operations
@@ -29,21 +35,19 @@ module Database.Cassandra.Content
 
 import           Control.Exception
 import           Control.Monad
-import           Data.ByteString.Lazy.Char8 (ByteString)
-import qualified Data.ByteString.Lazy.Char8 as LB
-import qualified Data.ByteString.Char8 as B
-import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import qualified Database.Cassandra.Thrift.Cassandra_Types as T
-import           Database.Cassandra.Thrift.Cassandra_Types 
-                  (ConsistencyLevel(..))
-import           Data.Map (Map)
-import qualified Data.Map as M
+import           Data.Aeson as A
+import qualified Data.Attoparsec                            as Atto (Result(..), parse)
+import qualified Data.ByteString.Char8                      as B
+import           Data.ByteString.Lazy.Char8                 (ByteString)
+import qualified Data.ByteString.Lazy.Char8                 as LB
+import           Data.Map                                   (Map)
+import qualified Data.Map                                   as M
 import           Network
-import           Prelude hiding (catch)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy.Encoding as LT
+import           Prelude                                    hiding (catch)
+import qualified Data.Text                                  as T
+import qualified Data.Text.Encoding                         as T
+import qualified Data.Text.Lazy                             as LT
+import qualified Data.Text.Lazy.Encoding                    as LT
 
 import           Database.Cassandra.Basic
 import           Database.Cassandra.Pool
@@ -51,36 +55,30 @@ import           Database.Cassandra.Types
 
 
 -------------------------------------------------------------------------------
----- Content Typeclass
+---- CKey Typeclass
 -------------------------------------------------------------------------------
 
 
 ------------------------------------------------------------------------------
--- | A typeclass for serializing any record to Cassandra
-class Content a where
+-- | A typeclass to enable using any string-like type for row and column keys
+class CKey a where
   toBS    :: a -> ByteString
-  fromBS  :: ByteString -> Maybe a
 
-
-instance Content String where
+instance CKey String where
     toBS = LB.pack
-    fromBS = Just . LB.unpack
 
-instance Content LT.Text where
+instance CKey LT.Text where
     toBS = LT.encodeUtf8
-    fromBS = Just . LT.decodeUtf8
 
-instance Content T.Text where
+instance CKey T.Text where
     toBS = toBS . LT.fromChunks . return
-    fromBS = fmap (T.concat . LT.toChunks) . fromBS
 
-instance Content B.ByteString where
+instance CKey B.ByteString where
     toBS = LB.fromChunks . return
-    fromBS = fmap (B.concat . LB.toChunks) . fromBS
 
-instance Content ByteString where
+instance CKey ByteString where
     toBS = id
-    fromBS = Just . id 
+
 
 
 ------------------------------------------------------------------------------
@@ -105,7 +103,7 @@ data ModifyOperation a =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify
-  :: (Content k, Content a)
+  :: (CKey k, ToJSON a, FromJSON a)
   => CPool
   -> ColumnFamily
   -> k
@@ -126,7 +124,7 @@ modify cp cf k cn rcl wcl f =
       (fres, b) <- f prev
       dbres <- case fres of
         (Update a) ->
-          insert cp cf k' wcl [col cn (toBS a)]
+          insert cp cf k' wcl [col cn (marshallJSON' a)]
         (Delete) ->
           remove cp cf k' (ColNames [cn]) wcl
         (DoNothing) -> return $ Right ()
@@ -138,7 +136,7 @@ modify cp cf k cn rcl wcl f =
     case res of
       Left NotFoundException -> execF Nothing
       Left e -> throw e
-      Right Column{..} -> execF (fromBS colVal)
+      Right Column{..} -> execF (unMarshallJSON' colVal)
       Right SuperColumn{..} -> throw $ 
         OperationNotSupported "modify not implemented for SuperColumn"
 
@@ -149,7 +147,7 @@ modify cp cf k cn rcl wcl f =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify_
-  :: (Content k, Content a)
+  :: (CKey k, ToJSON a, FromJSON a)
   => CPool
   -> ColumnFamily
   -> k
@@ -173,13 +171,45 @@ modify_ cp cf k cn rcl wcl f =
 
 
 -------------------------------------------------------------------------------
--- Simple insertion function making use of the 'Content' typeclass
+-- Simple insertion function making use of typeclasses
 insertCol
-    :: (Content k, Content a)
+    :: (CKey k, CKey columnName, ToJSON a)
     => CPool -> ColumnFamily 
     -> k -- ^ Row Key
-    -> ColumnName
+    -> columnName
     -> ConsistencyLevel
     -> a -- ^ Content
     -> IO (Either CassandraException ())
-insertCol cp cf k cn cl a = insert cp cf (toBS k) cl [col cn (toBS a)]
+insertCol cp cf k cn cl a = insert cp cf (toBS k) cl [col (toBS cn) (marshallJSON' a)]
+
+
+------------------------------------------------------------------------------
+-- | Lazy 'marshallJSON'
+marshallJSON' :: ToJSON a => a -> ByteString
+marshallJSON' = LB.fromChunks . return . marshallJSON
+
+
+------------------------------------------------------------------------------
+-- | Encode JSON 
+marshallJSON :: ToJSON a => a -> B.ByteString
+marshallJSON = B.concat . LB.toChunks . A.encode
+
+
+------------------------------------------------------------------------------
+-- | Lazy 'unMarshallJSON'
+unMarshallJSON' :: FromJSON a => ByteString -> Maybe a
+unMarshallJSON' = unMarshallJSON . B.concat . LB.toChunks 
+
+------------------------------------------------------------------------------
+-- | Decode JSON 
+unMarshallJSON :: FromJSON a => B.ByteString -> Maybe a
+unMarshallJSON = pJson 
+  where 
+    pJson bs = val
+      where
+        js = Atto.parse json bs
+        val = case js of
+          Atto.Done _ r -> case fromJSON r of
+            Error e -> error $ "JSON err: " ++ show e
+            Success a -> a
+          _ -> Nothing
