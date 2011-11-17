@@ -21,10 +21,21 @@
 
 module Database.Cassandra.JSON 
 ( 
+  
+  -- * Connection
+    CPool
+  , Server(..)
+  , defServer
+  , defServers
+  , KeySpace(..)
+  , createCassandraPool
+
 
   -- * Necessary Types
-    CKey(..)
+  , CKey(..)
   , ModifyOperation(..)
+  , ColumnFamily(..)
+  , ConsistencyLevel(..)
 
   -- * Cassandra Operations
   , insertCol
