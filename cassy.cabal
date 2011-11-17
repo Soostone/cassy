@@ -16,8 +16,6 @@ description:
   .
   Potential TODOs include:
   .
-  A JSON layer that encodes/decodes values as JSON
-  .
   Support for counters and batch mutators
   .
   Support for database admin operations
