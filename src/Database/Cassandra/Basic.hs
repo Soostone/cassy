@@ -41,6 +41,7 @@ module Database.Cassandra.Basic
 
   -- * Utility
   , getTime
+  , throwing
 ) where
 
 
@@ -246,3 +247,13 @@ wrapException a =
   `catch` (\(T.AuthorizationException e) -> 
             return . Left . AuthorizationException $ maybe "" id e)
   `catch` (\T.SchemaDisagreementException -> return $ Left SchemaDisagreementException)
+
+
+-------------------------------------------------------------------------------
+-- | Make exceptions implicit
+throwing :: IO (Either CassandraException a) -> IO a
+throwing f = do
+  res <- f
+  case res of
+    Left e -> throw e
+    Right a -> return a
