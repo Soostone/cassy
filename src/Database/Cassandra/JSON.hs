@@ -41,6 +41,7 @@ module Database.Cassandra.JSON
   , insertCol
   , modify
   , modify_
+  , get
 
 ) where
 
@@ -60,7 +61,7 @@ import qualified Data.Text.Encoding                         as T
 import qualified Data.Text.Lazy                             as LT
 import qualified Data.Text.Lazy.Encoding                    as LT
 
-import           Database.Cassandra.Basic
+import           Database.Cassandra.Basic hiding (get)
 import qualified Database.Cassandra.Basic as CB
 import           Database.Cassandra.Pool
 import           Database.Cassandra.Types
