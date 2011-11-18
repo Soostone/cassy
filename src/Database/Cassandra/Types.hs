@@ -65,8 +65,8 @@ mkPredicate s =
     ColNames ks -> C.SlicePredicate (Just ks) Nothing
     Range st end ord cnt -> 
       let
-        st' = maybe (Just "") Just st
-        end' = maybe (Just "") Just end
+        st' = st `mplus` Just ""
+        end' = end `mplus` Just ""
       in C.SlicePredicate Nothing 
           (Just (C.SliceRange st' end' (Just $ renderOrd ord) (Just cnt)))
 

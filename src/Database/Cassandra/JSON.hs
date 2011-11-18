@@ -76,21 +76,27 @@ import           Database.Cassandra.Types
 -- | A typeclass to enable using any string-like type for row and column keys
 class CKey a where
   toBS    :: a -> ByteString
+  fromBS  :: ByteString -> a
 
 instance CKey String where
     toBS = LB.pack
+    fromBS = LB.unpack
 
 instance CKey LT.Text where
     toBS = LT.encodeUtf8
+    fromBS = LT.decodeUtf8
 
 instance CKey T.Text where
     toBS = toBS . LT.fromChunks . return
+    fromBS = T.concat . LT.toChunks . fromBS
 
 instance CKey B.ByteString where
     toBS = LB.fromChunks . return
+    fromBS = B.concat . LB.toChunks . fromBS
 
 instance CKey ByteString where
     toBS = id
+    fromBS = id
 
 
 
@@ -192,8 +198,9 @@ insertCol
     -> columnName
     -> ConsistencyLevel
     -> a -- ^ Content
-    -> IO (Either CassandraException ())
-insertCol cp cf k cn cl a = insert cp cf (toBS k) cl [col (toBS cn) (marshallJSON' a)]
+    -> IO ()
+insertCol cp cf k cn cl a = 
+  throwing $ insert cp cf (toBS k) cl [col (toBS cn) (marshallJSON' a)]
 
 
 ------------------------------------------------------------------------------
@@ -203,14 +210,14 @@ insertCol cp cf k cn cl a = insert cp cf (toBS k) cl [col (toBS cn) (marshallJSO
 -- ColumnFamily and contents of returned columns are cast into the
 -- target type.
 get
-    :: (CKey k, FromJSON a)
+    :: (CKey k, CKey colKey, FromJSON a)
     => CPool -> ColumnFamily
     -> k
     -> Selector
    -> ConsistencyLevel
-    -> IO [(ColumnName, Maybe a)]
+    -> IO [(colKey, Maybe a)]
 get cp cf k s cl = 
-  let conv (Column nm val _ _) = (nm, unMarshallJSON' val)
+  let conv (Column nm val _ _) = (fromBS nm, unMarshallJSON' val)
   in do
     res <- throwing $ CB.get cp cf (toBS k) s cl
     return $ map conv res
