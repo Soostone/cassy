@@ -61,6 +61,7 @@ import qualified Data.Text.Lazy                             as LT
 import qualified Data.Text.Lazy.Encoding                    as LT
 
 import           Database.Cassandra.Basic
+import qualified Database.Cassandra.Basic as CB
 import           Database.Cassandra.Pool
 import           Database.Cassandra.Types
 
@@ -126,7 +127,7 @@ modify
   -> (Maybe a -> IO (ModifyOperation a, b))
   -- ^ Modification function. Called with 'Just' the value if present,
   -- 'Nothing' otherwise.
-  -> IO (ModifyOperation a, b)
+  -> IO b
   -- ^ Return the decided 'ModifyOperation' and its execution outcome
 modify cp cf k cn rcl wcl f = 
   let
@@ -141,7 +142,7 @@ modify cp cf k cn rcl wcl f =
         (DoNothing) -> return $ Right ()
       case dbres of
         Left e -> throw e -- Modify op returned error; throw it
-        Right _ -> return (fres, b)
+        Right _ -> return b
   in do
     res <- getOne cp cf k' cn rcl
     case res of
@@ -170,15 +171,15 @@ modify_
   -> (Maybe a -> IO (ModifyOperation a))
   -- ^ Modification function. Called with 'Just' the value if present,
   -- 'Nothing' otherwise.
-  -> IO (ModifyOperation a)
+  -> IO ()
 modify_ cp cf k cn rcl wcl f = 
   let
     f' prev = do
       op <- f prev
       return (op, ())
   in do
-  (op, _) <- modify cp cf k cn rcl wcl f'
-  return op
+  modify cp cf k cn rcl wcl f'
+  return ()
 
 
 -------------------------------------------------------------------------------
@@ -193,6 +194,27 @@ insertCol
     -> IO (Either CassandraException ())
 insertCol cp cf k cn cl a = insert cp cf (toBS k) cl [col (toBS cn) (marshallJSON' a)]
 
+
+------------------------------------------------------------------------------
+-- | An arbitrary get operation - slice with 'Selector'.
+--
+-- Internally based on Basic.get. Table is assumed to be a regular
+-- ColumnFamily and contents of returned columns are cast into the
+-- target type.
+get
+    :: (CKey k, FromJSON a)
+    => CPool -> ColumnFamily
+    -> k
+    -> Selector
+   -> ConsistencyLevel
+    -> IO [(ColumnName, Maybe a)]
+get cp cf k s cl = 
+  let conv (Column nm val _ _) = (nm, unMarshallJSON' val)
+  in do
+    res <- throwing $ CB.get cp cf (toBS k) s cl
+    return $ map conv res
+  
+    
 
 ------------------------------------------------------------------------------
 -- | Lazy 'marshallJSON'
