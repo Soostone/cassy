@@ -33,11 +33,11 @@ module Database.Cassandra.Basic
   , createCassandraPool
 
   -- * Cassandra Operations
-  , getOne
+  , getCol
   , get
   , getMulti
   , insert
-  , remove
+  , delete
 
   -- * Utility
   , getTime
@@ -71,16 +71,16 @@ test = do
     let sp = T.SlicePredicate Nothing sr
     C.get_slice (cProto, cProto) "darak" cp sp ONE
   get pool "darak" "CF1" All ONE
-  getOne pool "CF1" "darak" "eben" ONE
+  getCol pool "CF1" "darak" "eben" ONE
   insert pool "CF1" "test1" ONE [col "col1" "val1", col "col2" "val2"] 
   get pool "test1" "CF1" All ONE >>= putStrLn . show
-  remove pool "test1" "CF1" (ColNames ["col2"]) ONE
+  delete pool "test1" "CF1" (ColNames ["col2"]) ONE
   get pool "test1" "CF1" (Range Nothing Nothing Reversed 1) ONE >>= putStrLn . show
 
 
 ------------------------------------------------------------------------------
 -- | Get a single key-column value
-getOne 
+getCol 
   :: CPool
   -> ColumnFamily 
   -> Key 
@@ -90,7 +90,7 @@ getOne
   -> ConsistencyLevel 
   -- ^ Read quorum
   -> IO (Either CassandraException Column)
-getOne p cf k cn cl = do
+getCol p cf k cn cl = do
   c <- get p cf k (ColNames [cn]) cl
   case c of
     Left e -> return $ Left e
@@ -200,9 +200,9 @@ sequenceE (a:as) = do
 
 
 ------------------------------------------------------------------------------
--- | Remove an entire row, specific columns or a specific sub-set of columns
+-- | Delete an entire row, specific columns or a specific sub-set of columns
 -- within a SuperColumn.
-remove 
+delete 
   ::  CPool
   -> ColumnFamily
   -- ^ In 'ColumnFamily'
@@ -212,7 +212,7 @@ remove
   -- ^ Columns to be deleted
   -> ConsistencyLevel
   -> IO (Either CassandraException ())
-remove p cf k s cl = withPool p $ \ Cassandra {..} -> do
+delete p cf k s cl = withPool p $ \ Cassandra {..} -> do
   now <- getTime
   wrapException $ case s of
     All -> C.remove (cProto, cProto) k cpAll now cl

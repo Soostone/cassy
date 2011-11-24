@@ -2,6 +2,7 @@
              NamedFieldPuns, 
              OverloadedStrings,
              TypeSynonymInstances, 
+             ScopedTypeVariables,
              RecordWildCards #-}
 
 {-|
@@ -38,10 +39,13 @@ module Database.Cassandra.JSON
   , ConsistencyLevel(..)
 
   -- * Cassandra Operations
+  , get
+  , getCol  
   , insertCol
   , modify
   , modify_
-  , get
+  , delete
+
 
 ) where
 
@@ -61,7 +65,7 @@ import qualified Data.Text.Encoding                         as T
 import qualified Data.Text.Lazy                             as LT
 import qualified Data.Text.Lazy.Encoding                    as LT
 
-import           Database.Cassandra.Basic hiding (get)
+import           Database.Cassandra.Basic hiding (get, getCol, delete)
 import qualified Database.Cassandra.Basic as CB
 import           Database.Cassandra.Pool
 import           Database.Cassandra.Types
@@ -100,6 +104,15 @@ instance CKey ByteString where
 
 
 
+-------------------------------------------------------------------------------
+-- | Convert regular column to a key-value pair
+col2val :: (CKey colKey, FromJSON a) => Column -> (colKey, a)
+col2val (Column nm val _ _) =  (fromBS nm, maybe err id $ unMarshallJSON' val)
+    where err = error "Value can't be parsed from JSON."
+col2val _ = error "col2val is not implemented for SuperColumns"
+
+
+
 ------------------------------------------------------------------------------
 -- | Possible outcomes of a modify operation 
 data ModifyOperation a = 
@@ -122,11 +135,11 @@ data ModifyOperation a =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify
-  :: (CKey k, ToJSON a, FromJSON a)
+  :: (CKey rowKey, CKey colKey, ToJSON a, FromJSON a)
   => CPool
   -> ColumnFamily
-  -> k
-  -> ColumnName
+  -> rowKey
+  -> colKey
   -> ConsistencyLevel
   -- ^ Read quorum
   -> ConsistencyLevel
@@ -139,19 +152,20 @@ modify
 modify cp cf k cn rcl wcl f = 
   let
     k' = toBS k
+    cn' = toBS cn
     execF prev = do
       (fres, b) <- f prev
       dbres <- case fres of
         (Update a) ->
-          insert cp cf k' wcl [col cn (marshallJSON' a)]
+          insert cp cf k' wcl [col cn' (marshallJSON' a)]
         (Delete) ->
-          remove cp cf k' (ColNames [cn]) wcl
+          CB.delete cp cf k' (ColNames [cn']) wcl
         (DoNothing) -> return $ Right ()
       case dbres of
         Left e -> throw e -- Modify op returned error; throw it
         Right _ -> return b
   in do
-    res <- getOne cp cf k' cn rcl
+    res <- CB.getCol cp cf k' cn' rcl
     case res of
       Left NotFoundException -> execF Nothing
       Left e -> throw e
@@ -216,13 +230,47 @@ get
     -> Selector
    -> ConsistencyLevel
     -> IO [(colKey, Maybe a)]
-get cp cf k s cl = 
-  let conv (Column nm val _ _) = (fromBS nm, unMarshallJSON' val)
-  in do
-    res <- throwing $ CB.get cp cf (toBS k) s cl
-    return $ map conv res
-  
-    
+get cp cf k s cl = do
+  res <- throwing $ CB.get cp cf (toBS k) s cl
+  return $ map col2val res
+
+
+-------------------------------------------------------------------------------
+-- | Get a single column from a single row
+getCol
+    :: (CKey rowKey, CKey colKey, FromJSON a)
+    => CPool -> ColumnFamily
+    -> rowKey
+    -> colKey
+    -> ConsistencyLevel
+    -> IO (Maybe a)
+getCol cp cf rk ck cl = do
+  res <- CB.getCol cp cf (toBS rk) (toBS ck) cl
+  case res of
+    Left NotFoundException -> return Nothing
+    Left e -> throw e
+    Right a -> 
+        let (_ :: ByteString, x) = col2val a
+        in return $ Just x
+
+
+
+------------------------------------------------------------------------------
+-- | Same as the 'delete' in the 'Cassandra.Basic' module, except that
+-- it throws an exception rather than returning an explicit Either
+-- value.
+delete 
+  ::  CPool
+  -> ColumnFamily
+  -- ^ In 'ColumnFamily'
+  -> Key
+  -- ^ Key to be deleted
+  -> Selector
+  -- ^ Columns to be deleted
+  -> ConsistencyLevel
+  -> IO ()
+delete p cf k s cl = throwing $ CB.delete p cf k s cl
+
 
 ------------------------------------------------------------------------------
 -- | Lazy 'marshallJSON'
