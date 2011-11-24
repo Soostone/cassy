@@ -180,10 +180,10 @@ modify cp cf k cn rcl wcl f =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify_
-  :: (CKey k, ToJSON a, FromJSON a)
+  :: (CKey rowKey, ToJSON a, FromJSON a)
   => CPool
   -> ColumnFamily
-  -> k
+  -> rowKey
   -> ColumnName
   -> ConsistencyLevel
   -- ^ Read quorum
@@ -206,10 +206,10 @@ modify_ cp cf k cn rcl wcl f =
 -------------------------------------------------------------------------------
 -- Simple insertion function making use of typeclasses
 insertCol
-    :: (CKey k, CKey columnName, ToJSON a)
+    :: (CKey rowKey, CKey colKey, ToJSON a)
     => CPool -> ColumnFamily 
-    -> k -- ^ Row Key
-    -> columnName
+    -> rowKey
+    -> colKey
     -> ConsistencyLevel
     -> a -- ^ Content
     -> IO ()
@@ -224,9 +224,9 @@ insertCol cp cf k cn cl a =
 -- ColumnFamily and contents of returned columns are cast into the
 -- target type.
 get
-    :: (CKey k, CKey colKey, FromJSON a)
+    :: (CKey rowKey, CKey colKey, FromJSON a)
     => CPool -> ColumnFamily
-    -> k
+    -> rowKey
     -> Selector
    -> ConsistencyLevel
     -> IO [(colKey, Maybe a)]
@@ -260,16 +260,18 @@ getCol cp cf rk ck cl = do
 -- it throws an exception rather than returning an explicit Either
 -- value.
 delete 
-  ::  CPool
+  :: (CKey rowKey)
+  => CPool
+  -- ^ Cassandra connection
   -> ColumnFamily
   -- ^ In 'ColumnFamily'
-  -> Key
+  -> rowKey
   -- ^ Key to be deleted
   -> Selector
   -- ^ Columns to be deleted
   -> ConsistencyLevel
   -> IO ()
-delete p cf k s cl = throwing $ CB.delete p cf k s cl
+delete p cf k s cl = throwing $ CB.delete p cf (toBS k) s cl
 
 
 ------------------------------------------------------------------------------
