@@ -51,22 +51,23 @@ module Database.Cassandra.JSON
 
 import           Control.Exception
 import           Control.Monad
-import           Data.Aeson as A
-import qualified Data.Attoparsec                            as Atto (Result(..), parse)
-import qualified Data.ByteString.Char8                      as B
-import           Data.ByteString.Lazy.Char8                 (ByteString)
-import qualified Data.ByteString.Lazy.Char8                 as LB
-import           Data.Map                                   (Map)
-import qualified Data.Map                                   as M
+import           Data.Aeson                 as A
+import           Data.Aeson.Parser          (value)
+import qualified Data.Attoparsec            as Atto (Result(..), parse)
+import qualified Data.ByteString.Char8      as B
+import           Data.ByteString.Lazy.Char8 (ByteString)
+import qualified Data.ByteString.Lazy.Char8 as LB
+import           Data.Map                   (Map)
+import qualified Data.Map                   as M
+import qualified Data.Text                  as T
+import qualified Data.Text.Encoding         as T
+import qualified Data.Text.Lazy             as LT
+import qualified Data.Text.Lazy.Encoding    as LT
 import           Network
-import           Prelude                                    hiding (catch)
-import qualified Data.Text                                  as T
-import qualified Data.Text.Encoding                         as T
-import qualified Data.Text.Lazy                             as LT
-import qualified Data.Text.Lazy.Encoding                    as LT
+import           Prelude                    hiding (catch)
 
-import           Database.Cassandra.Basic hiding (get, getCol, delete)
-import qualified Database.Cassandra.Basic as CB
+import           Database.Cassandra.Basic   hiding (get, getCol, delete)
+import qualified Database.Cassandra.Basic   as CB
 import           Database.Cassandra.Pool
 import           Database.Cassandra.Types
 
@@ -298,7 +299,7 @@ unMarshallJSON = pJson
   where 
     pJson bs = val
       where
-        js = Atto.parse json bs
+        js = Atto.parse value bs
         val = case js of
           Atto.Done _ r -> case fromJSON r of
             Error e -> error $ "JSON err: " ++ show e
