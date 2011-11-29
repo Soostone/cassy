@@ -229,7 +229,7 @@ get
     -> rowKey
     -> Selector
    -> ConsistencyLevel
-    -> IO [(colKey, Maybe a)]
+    -> IO [(colKey, a)]
 get cp cf k s cl = do
   res <- throwing $ CB.get cp cf (toBS k) s cl
   return $ map col2val res
