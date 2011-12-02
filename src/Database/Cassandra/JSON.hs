@@ -53,7 +53,7 @@ import           Control.Exception
 import           Control.Monad
 import           Data.Aeson                 as A
 import           Data.Aeson.Parser          (value)
-import qualified Data.Attoparsec            as Atto (Result(..), parse)
+import qualified Data.Attoparsec            as Atto (IResult(..), parse)
 import qualified Data.ByteString.Char8      as B
 import           Data.ByteString.Lazy.Char8 (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as LB
