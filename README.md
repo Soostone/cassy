@@ -11,6 +11,12 @@ There are currently two modules, one for basic/lower level (but still
 much more pleasant than thrift) operation, and one for some
 experimental JSON serialization support.
 
+## API Documentation
+
+Please see the Haddocks hosted on HackageDB:
+
+http://hackage.haskell.org/package/cassy
+
 
 ## Examples
 
