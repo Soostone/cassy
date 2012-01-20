@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.2.0
+Version:             0.2.0.1
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE

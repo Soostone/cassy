@@ -37,6 +37,7 @@ module Database.Cassandra.JSON
   , ModifyOperation(..)
   , ColumnFamily(..)
   , ConsistencyLevel(..)
+  , CassandraException(..)
 
   -- * Cassandra Operations
   , get
@@ -181,11 +182,11 @@ modify cp cf k cn rcl wcl f =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify_
-  :: (CKey rowKey, ToJSON a, FromJSON a)
+  :: (CKey rowKey, CKey colKey, ToJSON a, FromJSON a)
   => CPool
   -> ColumnFamily
   -> rowKey
-  -> ColumnName
+  -> colKey
   -> ConsistencyLevel
   -- ^ Read quorum
   -> ConsistencyLevel
