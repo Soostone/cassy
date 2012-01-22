@@ -3,6 +3,7 @@
              OverloadedStrings,
              TypeSynonymInstances, 
              ScopedTypeVariables,
+             FlexibleInstances,
              RecordWildCards #-}
 
 {-|
