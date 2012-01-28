@@ -4,6 +4,7 @@
              TypeSynonymInstances, 
              ScopedTypeVariables,
              FlexibleInstances,
+             ExistentialQuantification,
              RecordWildCards #-}
 
 {-|
@@ -32,6 +33,14 @@ module Database.Cassandra.JSON
   , KeySpace(..)
   , createCassandraPool
 
+  -- * Cassandra Operations
+  , get
+  , getCol  
+  , getMulti
+  , insertCol
+  , modify
+  , modify_
+  , delete
 
   -- * Necessary Types
   , CKey(..)
@@ -39,14 +48,9 @@ module Database.Cassandra.JSON
   , ColumnFamily(..)
   , ConsistencyLevel(..)
   , CassandraException(..)
+  , Selector(..)
+  , KeySelector(..)
 
-  -- * Cassandra Operations
-  , get
-  , getCol  
-  , insertCol
-  , modify
-  , modify_
-  , delete
 
 
 ) where
@@ -59,6 +63,7 @@ import qualified Data.Attoparsec            as Atto (IResult(..), parse)
 import qualified Data.ByteString.Char8      as B
 import           Data.ByteString.Lazy.Char8 (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as LB
+import           Data.Int                   (Int32, Int64)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
 import qualified Data.Text                  as T
@@ -68,10 +73,11 @@ import qualified Data.Text.Lazy.Encoding    as LT
 import           Network
 import           Prelude                    hiding (catch)
 
-import           Database.Cassandra.Basic   hiding (get, getCol, delete)
+import           Database.Cassandra.Basic   hiding (get, getCol, delete, KeySelector (..), 
+                                                    getMulti)
 import qualified Database.Cassandra.Basic   as CB
 import           Database.Cassandra.Pool
-import           Database.Cassandra.Types
+import           Database.Cassandra.Types   hiding (KeySelector (..))
 
 
 -------------------------------------------------------------------------------
@@ -237,6 +243,30 @@ get cp cf k s cl = do
   res <- throwing $ CB.get cp cf (toBS k) s cl
   return $ map col2val res
 
+
+data KeySelector 
+    = forall k. CKey k => Keys [k]
+    | forall k. CKey k => KeyRange KeyRangeType k k Int32
+    
+ksToBasicKS (Keys k) = CB.Keys $ map toBS k
+ksToBasicKS (KeyRange ty fr to i) = CB.KeyRange ty (toBS fr) (toBS to) i
+
+
+-------------------------------------------------------------------------------
+-- | Get a slice of columns from multiple rows at once. Note that
+-- since we are auto-serializing from JSON, all the columns must be of
+-- the same data type.
+getMulti 
+    :: (Ord rowKey, CKey rowKey, CKey colKey, FromJSON a)
+    => CPool -> ColumnFamily
+    -> KeySelector -> Selector -> ConsistencyLevel
+    -> IO (Map rowKey [(colKey, a)])
+getMulti cp cf ks s cl = do
+  res <- throwing $ CB.getMulti cp cf (ksToBasicKS ks) s cl
+  return . M.fromList . map conv . M.toList $ res
+  where
+    conv (k, row) = (fromBS k, map col2val row)
+  
 
 -------------------------------------------------------------------------------
 -- | Get a single column from a single row
