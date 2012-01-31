@@ -30,12 +30,14 @@ import Network
 type CPool = Pool Cassandra Server
 
 
-type Server = (HostName, PortID)
+-------------------------------------------------------------------------------
+-- | A (ServerName, Port) tuple
+type Server = (HostName, Int)
 
 
 -- | A localhost server with default configuration
 defServer :: Server
-defServer = ("127.0.0.1", PortNumber 9160)
+defServer = ("127.0.0.1", 9160)
 
 
 -- | A single localhost server with default configuration
@@ -72,7 +74,7 @@ createCassandraPool servers n maxIdle ks = createPool cr dest n maxIdle servers
   where
     cr :: Server -> IO Cassandra
     cr (host, p) = do
-      h <- hOpen (host, p)
+      h <- hOpen (host, PortNumber (fromIntegral p))
       ft <- openFramedTransport h
       let p = BinaryProtocol ft
       C.set_keyspace (p,p) ks
