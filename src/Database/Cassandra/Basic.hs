@@ -63,7 +63,7 @@ import           Database.Cassandra.Types
 
 
 test = do
-  pool <- createCassandraPool [("127.0.0.1", PortNumber 9160)] 3 300 "Keyspace1"
+  pool <- createCassandraPool [("127.0.0.1", 9160)] 3 300 "Keyspace1"
   withPool pool $ \ Cassandra{..} -> do
     let cp = T.ColumnParent (Just "CF1") Nothing
     let sr = Just $ T.SliceRange (Just "") (Just "") (Just False) (Just 100)
