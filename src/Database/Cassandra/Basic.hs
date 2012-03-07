@@ -1,124 +1,173 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 
 module Database.Cassandra.Basic 
 
-(
-  -- * Basic Types
-    ColumnFamily(..)
-  , Key(..)
-  , ColumnName(..)
-  , Value(..)
-  , Column(..)
-  , col
-  , Row(..)
-  , ConsistencyLevel(..)
+    (
 
-  -- * Filtering
-  , Selector(..)
-  , Order(..)
-  , KeySelector(..)
-  , KeyRangeType(..)
+    -- * Connection
+      CPool
+    , Server
+    , defServer
+    , defServers
+    , KeySpace
+    , createCassandraPool
+    
+    -- * MonadCassandra Typeclass
+    , MonadCassandra (..)
+    , Cas (..)
+    , runCas
 
-  -- * Exceptions
-  , CassandraException(..)
+    -- * Cassandra Operations
+    , getCol
+    , get
+    , getMulti
+    , insert
+    , delete
 
-  -- * Connection
-  , CPool
-  , Server(..)
-  , defServer
-  , defServers
-  , KeySpace(..)
-  , createCassandraPool
+    -- * Filtering
+    , Selector(..)
+    , Order(..)
+    , KeySelector(..)
+    , KeyRangeType(..)
 
-  -- * Cassandra Operations
-  , getCol
-  , get
-  , getMulti
-  , insert
-  , delete
+    -- * Exceptions
+    , CassandraException(..)
 
-  -- * Utility
-  , getTime
-  , throwing
-) where
+    -- * Utility
+    , getTime
+    , throwing
+    , wrapException
+
+    -- * Basic Types
+    , ColumnFamily
+    , Key
+    , ColumnName
+    , Value
+    , Column(..)
+    , col
+    , Row
+    , ConsistencyLevel(..)
+
+    ) where
 
 
+-------------------------------------------------------------------------------
 import           Control.Exception
 import           Control.Monad
-import           Data.ByteString.Lazy (ByteString)
+import           Control.Applicative
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Reader
+import           Data.ByteString.Lazy                       (ByteString)
+import           Data.Map                                   (Map)
+import qualified Data.Map                                   as M
+import           Data.Maybe                                 (mapMaybe)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import qualified Database.Cassandra.Thrift.Cassandra_Types as T
-import           Database.Cassandra.Thrift.Cassandra_Types 
-                  (ConsistencyLevel(..))
-import           Data.Map (Map)
-import qualified Data.Map as M
-import           Data.Maybe (mapMaybe)
-import           Network
-import           Prelude hiding (catch)
-
+import qualified Database.Cassandra.Thrift.Cassandra_Types  as T
+import           Database.Cassandra.Thrift.Cassandra_Types  (ConsistencyLevel (..))
+import           Prelude                                    hiding (catch)
+-------------------------------------------------------------------------------
 import           Database.Cassandra.Pool
 import           Database.Cassandra.Types
+-------------------------------------------------------------------------------
 
 
-test = do
-  pool <- createCassandraPool [("127.0.0.1", 9160)] 3 300 "Keyspace1"
-  withPool pool $ \ Cassandra{..} -> do
-    let cp = T.ColumnParent (Just "CF1") Nothing
-    let sr = Just $ T.SliceRange (Just "") (Just "") (Just False) (Just 100)
-    let ks = Just ["eben"]
-    let sp = T.SlicePredicate Nothing sr
-    C.get_slice (cProto, cProto) "darak" cp sp ONE
-  get pool "darak" "CF1" All ONE
-  getCol pool "CF1" "darak" "eben" ONE
-  insert pool "CF1" "test1" ONE [col "col1" "val1", col "col2" "val2"] 
-  get pool "test1" "CF1" All ONE >>= putStrLn . show
-  delete pool "test1" "CF1" (ColNames ["col2"]) ONE
-  get pool "test1" "CF1" (Range Nothing Nothing Reversed 1) ONE >>= putStrLn . show
+-- test = do
+--   pool <- createCassandraPool [("127.0.0.1", 9160)] 3 300 "Keyspace1"
+--   withPool pool $ \ Cassandra{..} -> do
+--     let cp = T.ColumnParent (Just "CF1") Nothing
+--     let sr = Just $ T.SliceRange (Just "") (Just "") (Just False) (Just 100)
+--     let ks = Just ["eben"]
+--     let sp = T.SlicePredicate Nothing sr
+--     C.get_slice (cProto, cProto) "darak" cp sp ONE
+--   flip runCas pool $ do
+--     get "darak" "CF1" All ONE
+--     getCol "CF1" "darak" "eben" ONE
+--     insert "CF1" "test1" ONE [col "col1" "val1", col "col2" "val2"] 
+--     get  "test1" "CF1" All ONE >>= liftIO . putStrLn . show
+--     delete  "test1" "CF1" (ColNames ["col2"]) ONE
+--     get  "test1" "CF1" (Range Nothing Nothing Reversed 1) ONE >>= liftIO . putStrLn . show
+
+
+-------------------------------------------------------------------------------
+-- | All Cassy operations are designed to run inside 'MonadCassandra'
+-- context.
+--
+-- We provide a default concrete 'Cas' datatype, but you can simply
+-- make your own application monads an instance of 'MonadCassandra'
+-- for conveniently using all operations of this package.
+--
+-- Please keep in mind that all Cassandra operations may raise
+-- 'CassandraException's at any point in time.
+class (MonadIO m) => MonadCassandra m where
+    getCassandraPool :: m CPool
+
+
+-------------------------------------------------------------------------------
+withCassandraPool :: MonadCassandra m => (Cassandra -> IO b) -> m b
+withCassandraPool f = do
+  p <- getCassandraPool
+  liftIO $ withPool p f
+
+
+-------------------------------------------------------------------------------
+newtype Cas a = Cas { unCas :: ReaderT CPool IO a }
+    deriving (Functor,Applicative,Monad,MonadIO)
+
+
+-------------------------------------------------------------------------------
+-- | Main running function when using the ad-hoc Cas monad. Just write
+-- your cassandra actions within the 'Cas' monad and supply them with
+-- a 'CPool' to execute.
+runCas :: Cas a -> CPool -> IO a
+runCas f p = runReaderT (unCas f) p 
+
+
+-------------------------------------------------------------------------------
+instance MonadCassandra Cas where
+    getCassandraPool = Cas ask
 
 
 ------------------------------------------------------------------------------
--- | Get a single key-column value
+-- | Get a single key-column value.
 getCol 
-  :: CPool
-  -> ColumnFamily 
+  :: (MonadCassandra m)
+  => ColumnFamily 
   -> Key 
   -- ^ Row key
   -> ColumnName
   -- ^ Column/SuperColumn name
   -> ConsistencyLevel 
   -- ^ Read quorum
-  -> IO (Either CassandraException Column)
-getCol p cf k cn cl = do
-  c <- get p cf k (ColNames [cn]) cl
-  case c of
-    Left e -> return $ Left e
-    Right [] -> return $ Left NotFoundException
-    Right (x:_) -> return $ Right x
+  -> m (Maybe Column)
+getCol cf k cn cl = do
+    res <- get cf k (ColNames [cn]) cl
+    case res of
+      [] -> return Nothing
+      x:_ -> return $ Just x
 
 
 ------------------------------------------------------------------------------
 -- | An arbitrary get operation - slice with 'Selector'
 get 
-  :: CPool
-  -> ColumnFamily 
+  :: (MonadCassandra m)
+  => ColumnFamily 
   -- ^ in ColumnFamily
   -> Key 
   -- ^ Row key to get
   -> Selector 
   -- ^ Slice columns with selector
   -> ConsistencyLevel 
-  -> IO (Either CassandraException Row)
-get p cf k s cl = withPool p $ \ Cassandra{..} -> do
+  -> m Row
+get cf k s cl = withCassandraPool $ \ Cassandra{..} -> do
   res <- wrapException $ C.get_slice (cProto, cProto) k cp (mkPredicate s) cl
-  case res of
-    Left e -> return $ Left e
-    Right xs -> return $ do
-      cs <- mapM castColumn xs
-      case cs of
-        [] -> Left NotFoundException
-        _ -> Right $ cs
+  cs <- throwing . return $ mapM castColumn res
+  case cs of
+    [] -> throw NotFoundException
+    _ -> return cs
   where
     cp = T.ColumnParent (Just cf) Nothing
 
@@ -126,36 +175,27 @@ get p cf k s cl = withPool p $ \ Cassandra{..} -> do
 ------------------------------------------------------------------------------
 -- | Do multiple 'get's in one DB hit
 getMulti 
-  :: CPool
-  -> ColumnFamily 
+  :: (MonadCassandra m)
+  => ColumnFamily 
   -> KeySelector
   -- ^ A selection of rows to fetch in one hit
   -> Selector 
   -- ^ Subject to column selector conditions
   -> ConsistencyLevel 
-  -> IO (Either CassandraException (Map ByteString Row))
+  -> m (Map ByteString Row)
   -- ^ A Map from Row keys to 'Row's is returned
-getMulti p cf ks s cl = withPool p $ \ Cassandra{..} -> do
+getMulti cf ks s cl = withCassandraPool $ \ Cassandra{..} -> do
   case ks of
     Keys xs -> do
       res <- wrapException $ C.multiget_slice (cProto, cProto) xs cp (mkPredicate s) cl
-      case res of
-        Left e -> return $ Left e
-        Right m -> return . Right $ M.mapMaybe f m
+      return $ M.mapMaybe f res
     KeyRange {} -> do
       res <- wrapException $ 
         C.get_range_slices (cProto, cProto) cp (mkPredicate s) (mkKeyRange ks) cl
-      case res of
-        Left e -> return $ Left e
-        Right res' -> return . Right $ collectKeySlices res'
+      return $ collectKeySlices res
   where
     collectKeySlices :: [T.KeySlice] -> Map ByteString Row
-    collectKeySlices ks = M.fromList $ mapMaybe collectKeySlice ks
-      where 
-        f (k, Just x) = True
-        f _ = False
-        g (k, Just x) = (k,x)
-
+    collectKeySlices xs = M.fromList $ mapMaybe collectKeySlice xs
 
     collectKeySlice (T.KeySlice (Just k) (Just xs)) = 
       case mapM castColumn xs of
@@ -175,44 +215,34 @@ getMulti p cf ks s cl = withPool p $ \ Cassandra{..} -> do
 --
 -- This will do as many round-trips as necessary to insert the full row.
 insert
-  :: CPool
-  -> ColumnFamily
+  :: (MonadCassandra m)
+  => ColumnFamily
   -> Key
   -> ConsistencyLevel
   -> Row
-  -> IO (Either CassandraException ())
-insert p cf k cl row = withPool p $ \ Cassandra{..} -> do
-  let iOne c = do
-                c' <- mkThriftCol c
-                wrapException $ C.insert (cProto, cProto) k cp c' cl 
-  res <- sequenceE $ map iOne row
-  return $ res >> return ()
+  -> m ()
+insert cf k cl row = withCassandraPool $ \ Cassandra{..} -> do
+  forM_ row $ \ c -> do
+      c' <- mkThriftCol c
+      wrapException $ C.insert (cProto, cProto) k cp c' cl 
   where
     cp = T.ColumnParent (Just cf) Nothing
     
-
-sequenceE :: [IO (Either a b)] -> IO (Either a [b])
-sequenceE [] = return (return [])
-sequenceE (a:as) = do
-  r1 <- a
-  rr <- sequenceE as
-  return $ liftM2 (:) r1 rr
-
 
 ------------------------------------------------------------------------------
 -- | Delete an entire row, specific columns or a specific sub-set of columns
 -- within a SuperColumn.
 delete 
-  ::  CPool
-  -> ColumnFamily
+  ::  (MonadCassandra m)
+  => ColumnFamily
   -- ^ In 'ColumnFamily'
   -> Key
   -- ^ Key to be deleted
   -> Selector
   -- ^ Columns to be deleted
   -> ConsistencyLevel
-  -> IO (Either CassandraException ())
-delete p cf k s cl = withPool p $ \ Cassandra {..} -> do
+  -> m ()
+delete cf k s cl = withCassandraPool $ \ Cassandra {..} -> do
   now <- getTime
   wrapException $ case s of
     All -> C.remove (cProto, cProto) k cpAll now cl
@@ -220,6 +250,7 @@ delete p cf k s cl = withPool p $ \ Cassandra {..} -> do
       C.remove (cProto, cProto) k (cpCol c) now cl
     SupNames sn cs -> forM_ cs $ \c -> do
       C.remove (cProto, cProto) k (cpSCol sn c) now cl
+    Range _ _ _ _ -> error "delete: Range delete not implemented"
   where
     -- wipe out the entire row
     cpAll = T.ColumnPath (Just cf) Nothing Nothing
@@ -233,24 +264,26 @@ delete p cf k s cl = withPool p $ \ Cassandra {..} -> do
 
 
 ------------------------------------------------------------------------------
--- | Wrap exceptions into an explicit type
-wrapException :: IO a -> IO (Either CassandraException a)
-wrapException a = 
-  (a >>= return . Right)
-  `catch` (\(T.NotFoundException) -> return $ Left NotFoundException)
-  `catch` (\(T.InvalidRequestException e) -> 
-            return . Left . InvalidRequestException $ maybe "" id e)
-  `catch` (\T.UnavailableException -> return $ Left UnavailableException)
-  `catch` (\T.TimedOutException -> return $ Left TimedOutException)
-  `catch` (\(T.AuthenticationException e) -> 
-            return . Left . AuthenticationException $ maybe "" id e)
-  `catch` (\(T.AuthorizationException e) -> 
-            return . Left . AuthorizationException $ maybe "" id e)
-  `catch` (\T.SchemaDisagreementException -> return $ Left SchemaDisagreementException)
+-- | Wrap exceptions of the underlying thrift library into the
+-- exception types defined here.
+wrapException :: IO a -> IO a
+wrapException a = f
+    where 
+      f = a
+        `catch` (\ (T.NotFoundException) -> throw NotFoundException)
+        `catch` (\ (T.InvalidRequestException e) -> 
+                  throw . InvalidRequestException $ maybe "" id e)
+        `catch` (\ T.UnavailableException -> throw UnavailableException)
+        `catch` (\ T.TimedOutException -> throw TimedOutException)
+        `catch` (\ (T.AuthenticationException e) -> 
+                  throw . AuthenticationException $ maybe "" id e)
+        `catch` (\ (T.AuthorizationException e) -> 
+                  throw . AuthorizationException $ maybe "" id e)
+        `catch` (\ T.SchemaDisagreementException -> throw SchemaDisagreementException)
 
 
 -------------------------------------------------------------------------------
--- | Make exceptions implicit
+-- | Make exceptions implicit.
 throwing :: IO (Either CassandraException a) -> IO a
 throwing f = do
   res <- f

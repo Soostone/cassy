@@ -15,10 +15,6 @@
 
     Serialization and de-serialization of Column values are taken care of
     automatically using the ToJSON and FromJSON typeclasses.
-    
-    Also, this module currently attempts to reduce verbosity by
-    throwing errors instead of returning Either types as in the
-    'Database.Cassandra.Basic' module.
 
 -}
 
@@ -54,6 +50,7 @@ module Database.Cassandra.JSON
 
 
 ) where
+
 
 import           Control.Exception
 import           Control.Monad
@@ -144,42 +141,38 @@ data ModifyOperation a =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify
-  :: (CKey rowKey, CKey colKey, ToJSON a, FromJSON a)
-  => CPool
-  -> ColumnFamily
+  :: (MonadCassandra m, CKey rowKey, CKey colKey, ToJSON a, FromJSON a)
+  => ColumnFamily
   -> rowKey
   -> colKey
   -> ConsistencyLevel
   -- ^ Read quorum
   -> ConsistencyLevel
   -- ^ Write quorum
-  -> (Maybe a -> IO (ModifyOperation a, b))
+  -> (Maybe a -> m (ModifyOperation a, b))
   -- ^ Modification function. Called with 'Just' the value if present,
   -- 'Nothing' otherwise.
-  -> IO b
+  -> m b
   -- ^ Return the decided 'ModifyOperation' and its execution outcome
-modify cp cf k cn rcl wcl f = 
+modify cf k cn rcl wcl f = 
   let
     k' = toBS k
     cn' = toBS cn
     execF prev = do
       (fres, b) <- f prev
-      dbres <- case fres of
+      case fres of
         (Update a) ->
-          insert cp cf k' wcl [col cn' (marshallJSON' a)]
+          insert cf k' wcl [col cn' (marshallJSON' a)]
         (Delete) ->
-          CB.delete cp cf k' (ColNames [cn']) wcl
-        (DoNothing) -> return $ Right ()
-      case dbres of
-        Left e -> throw e -- Modify op returned error; throw it
-        Right _ -> return b
+          CB.delete cf k' (ColNames [cn']) wcl
+        (DoNothing) -> return ()
+      return b
   in do
-    res <- CB.getCol cp cf k' cn' rcl
+    res <- CB.getCol cf k' cn' rcl
     case res of
-      Left NotFoundException -> execF Nothing
-      Left e -> throw e
-      Right Column{..} -> execF (unMarshallJSON' colVal)
-      Right SuperColumn{..} -> throw $ 
+      Nothing -> execF Nothing
+      Just Column{..} -> execF (unMarshallJSON' colVal)
+      Just SuperColumn{..} -> throw $ 
         OperationNotSupported "modify not implemented for SuperColumn"
 
 
@@ -189,41 +182,40 @@ modify cp cf k cn rcl wcl f =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify_
-  :: (CKey rowKey, CKey colKey, ToJSON a, FromJSON a)
-  => CPool
-  -> ColumnFamily
+  :: (MonadCassandra m, CKey rowKey, CKey colKey, ToJSON a, FromJSON a)
+  => ColumnFamily
   -> rowKey
   -> colKey
   -> ConsistencyLevel
   -- ^ Read quorum
   -> ConsistencyLevel
   -- ^ Write quorum
-  -> (Maybe a -> IO (ModifyOperation a))
+  -> (Maybe a -> m (ModifyOperation a))
   -- ^ Modification function. Called with 'Just' the value if present,
   -- 'Nothing' otherwise.
-  -> IO ()
-modify_ cp cf k cn rcl wcl f = 
+  -> m ()
+modify_ cf k cn rcl wcl f = 
   let
     f' prev = do
       op <- f prev
       return (op, ())
   in do
-  modify cp cf k cn rcl wcl f'
-  return ()
+      modify cf k cn rcl wcl f'
+      return ()
 
 
 -------------------------------------------------------------------------------
 -- Simple insertion function making use of typeclasses
 insertCol
-    :: (CKey rowKey, CKey colKey, ToJSON a)
-    => CPool -> ColumnFamily 
+    :: (MonadCassandra m, CKey rowKey, CKey colKey, ToJSON a)
+    => ColumnFamily 
     -> rowKey
     -> colKey
     -> ConsistencyLevel
     -> a -- ^ Content
-    -> IO ()
-insertCol cp cf k cn cl a = 
-  throwing $ insert cp cf (toBS k) cl [col (toBS cn) (marshallJSON' a)]
+    -> m ()
+insertCol cf k cn cl a = 
+    insert cf (toBS k) cl [col (toBS cn) (marshallJSON' a)]
 
 
 ------------------------------------------------------------------------------
@@ -233,21 +225,24 @@ insertCol cp cf k cn cl a =
 -- ColumnFamily and contents of returned columns are cast into the
 -- target type.
 get
-    :: (CKey rowKey, CKey colKey, FromJSON a)
-    => CPool -> ColumnFamily
+    :: (MonadCassandra m, CKey rowKey, CKey colKey, FromJSON a)
+    => ColumnFamily
     -> rowKey
     -> Selector
-   -> ConsistencyLevel
-    -> IO [(colKey, a)]
-get cp cf k s cl = do
-  res <- throwing $ CB.get cp cf (toBS k) s cl
+    -> ConsistencyLevel
+    -> m [(colKey, a)]
+get cf k s cl = do
+  res <- CB.get cf (toBS k) s cl
   return $ map col2val res
 
 
+-------------------------------------------------------------------------------
 data KeySelector 
     = forall k. CKey k => Keys [k]
     | forall k. CKey k => KeyRange KeyRangeType k k Int32
-    
+
+
+-------------------------------------------------------------------------------
 ksToBasicKS (Keys k) = CB.Keys $ map toBS k
 ksToBasicKS (KeyRange ty fr to i) = CB.KeyRange ty (toBS fr) (toBS to) i
 
@@ -257,12 +252,14 @@ ksToBasicKS (KeyRange ty fr to i) = CB.KeyRange ty (toBS fr) (toBS to) i
 -- since we are auto-serializing from JSON, all the columns must be of
 -- the same data type.
 getMulti 
-    :: (Ord rowKey, CKey rowKey, CKey colKey, FromJSON a)
-    => CPool -> ColumnFamily
-    -> KeySelector -> Selector -> ConsistencyLevel
-    -> IO (Map rowKey [(colKey, a)])
-getMulti cp cf ks s cl = do
-  res <- throwing $ CB.getMulti cp cf (ksToBasicKS ks) s cl
+    :: (MonadCassandra m, Ord rowKey, CKey rowKey, CKey colKey, FromJSON a)
+    => ColumnFamily
+    -> KeySelector 
+    -> Selector 
+    -> ConsistencyLevel
+    -> m (Map rowKey [(colKey, a)])
+getMulti cf ks s cl = do
+  res <- CB.getMulti cf (ksToBasicKS ks) s cl
   return . M.fromList . map conv . M.toList $ res
   where
     conv (k, row) = (fromBS k, map col2val row)
@@ -271,21 +268,19 @@ getMulti cp cf ks s cl = do
 -------------------------------------------------------------------------------
 -- | Get a single column from a single row
 getCol
-    :: (CKey rowKey, CKey colKey, FromJSON a)
-    => CPool -> ColumnFamily
+    :: (MonadCassandra m, CKey rowKey, CKey colKey, FromJSON a)
+    => ColumnFamily
     -> rowKey
     -> colKey
     -> ConsistencyLevel
-    -> IO (Maybe a)
-getCol cp cf rk ck cl = do
-  res <- CB.getCol cp cf (toBS rk) (toBS ck) cl
-  case res of
-    Left NotFoundException -> return Nothing
-    Left e -> throw e
-    Right a -> 
-        let (_ :: ByteString, x) = col2val a
-        in return $ Just x
-
+    -> m (Maybe a)
+getCol cf rk ck cl = do
+    res <- CB.getCol cf (toBS rk) (toBS ck) cl 
+    case res of
+      Nothing -> return Nothing
+      Just res' -> do
+          let (_ :: ByteString, x) = col2val res'
+          return $ Just x
 
 
 ------------------------------------------------------------------------------
@@ -293,18 +288,16 @@ getCol cp cf rk ck cl = do
 -- it throws an exception rather than returning an explicit Either
 -- value.
 delete 
-  :: (CKey rowKey)
-  => CPool
-  -- ^ Cassandra connection
-  -> ColumnFamily
+  :: (MonadCassandra m, CKey rowKey)
+  =>ColumnFamily
   -- ^ In 'ColumnFamily'
   -> rowKey
   -- ^ Key to be deleted
   -> Selector
   -- ^ Columns to be deleted
   -> ConsistencyLevel
-  -> IO ()
-delete p cf k s cl = throwing $ CB.delete p cf (toBS k) s cl
+  -> m ()
+delete cf k s cl = CB.delete cf (toBS k) s cl
 
 
 ------------------------------------------------------------------------------

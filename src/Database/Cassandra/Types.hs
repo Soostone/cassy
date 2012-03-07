@@ -130,7 +130,7 @@ castColumn :: C.ColumnOrSuperColumn -> Either CassandraException Column
 castColumn x | Just c <- C.f_ColumnOrSuperColumn_column x = castCol c
              | Just c <- C.f_ColumnOrSuperColumn_super_column x = castSuperCol c
 castColumn _ = 
-  Left $ ConversionException "Unsupported/unexpected ColumnOrSuperColumn type"
+  Left $ ConversionException "castColumn: Unsupported/unexpected ColumnOrSuperColumn type"
 
 
 castCol :: C.Column -> Either CassandraException Column
