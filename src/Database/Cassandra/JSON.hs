@@ -19,37 +19,40 @@
 -}
 
 module Database.Cassandra.JSON 
-( 
+    ( 
   
-  -- * Connection
-    CPool
-  , Server(..)
-  , defServer
-  , defServers
-  , KeySpace(..)
-  , createCassandraPool
+    -- * Connection
+      CPool
+    , Server(..)
+    , defServer
+    , defServers
+    , KeySpace(..)
+    , createCassandraPool
 
-  -- * Cassandra Operations
-  , get
-  , getCol  
-  , getMulti
-  , insertCol
-  , modify
-  , modify_
-  , delete
+    -- * MonadCassandra Typeclass
+    , MonadCassandra (..)
+    , Cas (..)
+    , runCas
 
-  -- * Necessary Types
-  , CKey(..)
-  , ModifyOperation(..)
-  , ColumnFamily(..)
-  , ConsistencyLevel(..)
-  , CassandraException(..)
-  , Selector(..)
-  , KeySelector(..)
+    -- * Cassandra Operations
+    , get
+    , getCol  
+    , getMulti
+    , insertCol
+    , modify
+    , modify_
+    , delete
 
-
-
-) where
+    -- * Necessary Types
+    , CKey(..)
+    , ModifyOperation(..)
+    , ColumnFamily(..)
+    , ConsistencyLevel(..)
+    , CassandraException(..)
+    , Selector(..)
+    , KeySelector(..)
+    
+    ) where
 
 
 import           Control.Exception
