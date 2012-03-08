@@ -4,7 +4,7 @@
 module Database.Cassandra.Pool where
 
 
-
+-------------------------------------------------------------------------------
 import Control.Applicative ((<$>))
 import Control.Concurrent.STM
 import Control.Exception (SomeException, catch, onException)
@@ -13,17 +13,17 @@ import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import Data.List (partition)
 import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
-import Prelude hiding (catch)
-import System.Mem.Weak (addFinalizer)
-import System.IO (hClose, Handle(..))
-
-
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import Thrift.Transport
-import Thrift.Transport.Handle
-import Thrift.Transport.Framed
-import Thrift.Protocol.Binary
 import Network
+import Prelude hiding (catch)
+import System.IO (hClose, Handle(..))
+import System.Mem.Weak (addFinalizer)
+import Thrift.Protocol.Binary
+import Thrift.Transport
+import Thrift.Transport.Framed
+import Thrift.Transport.Handle
+-------------------------------------------------------------------------------
+
 
 ------------------------------------------------------------------------------
 -- | A round-robin pool of cassandra connections
@@ -125,11 +125,8 @@ mkRing (a:as) = Ring a [] as
 
 next :: Ring a -> Ring a
 next Ring{..} 
-  | (n:rest) <- upcoming
-  = Ring n (current : used) rest
-next Ring{..} 
-  | (n:rest) <- reverse (current : used)
-  = Ring n [] rest
+  | (n:rest) <- upcoming = Ring n (current : used) rest
+  | (n:rest) <- reverse (current : used) = Ring n [] rest
 
 
 data Stripe a s = Stripe {

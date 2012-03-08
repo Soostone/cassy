@@ -75,21 +75,22 @@ import           Database.Cassandra.Types
 -------------------------------------------------------------------------------
 
 
--- test = do
---   pool <- createCassandraPool [("127.0.0.1", 9160)] 3 300 "Keyspace1"
---   withPool pool $ \ Cassandra{..} -> do
---     let cp = T.ColumnParent (Just "CF1") Nothing
---     let sr = Just $ T.SliceRange (Just "") (Just "") (Just False) (Just 100)
---     let ks = Just ["eben"]
---     let sp = T.SlicePredicate Nothing sr
---     C.get_slice (cProto, cProto) "darak" cp sp ONE
---   flip runCas pool $ do
---     get "darak" "CF1" All ONE
---     getCol "CF1" "darak" "eben" ONE
---     insert "CF1" "test1" ONE [col "col1" "val1", col "col2" "val2"] 
---     get  "test1" "CF1" All ONE >>= liftIO . putStrLn . show
---     delete  "test1" "CF1" (ColNames ["col2"]) ONE
---     get  "test1" "CF1" (Range Nothing Nothing Reversed 1) ONE >>= liftIO . putStrLn . show
+test = do
+  pool <- createCassandraPool [("127.0.0.1", 9160)] 3 300 "Keyspace1"
+  withPool pool $ \ Cassandra{..} -> do
+    let cp = T.ColumnParent (Just "CF1") Nothing
+    let sr = Just $ T.SliceRange (Just "") (Just "") (Just False) (Just 100)
+    let ks = Just ["eben"]
+    let sp = T.SlicePredicate Nothing sr
+    C.get_slice (cProto, cProto) "darak" cp sp ONE
+  flip runCas pool $ do
+    get "CF1" "CF1" All ONE
+    getCol "CF1" "darak" "eben" ONE
+    insert "CF1" "test1" ONE [col "col1" "val1", col "col2" "val2"] 
+    get  "CF1" "CF1" All ONE >>= liftIO . print
+    get  "CF1" "not here" All ONE >>= liftIO . print
+    delete  "CF1" "CF1" (ColNames ["col2"]) ONE
+    get  "CF1" "CF1" (Range Nothing Nothing Reversed 1) ONE >>= liftIO . putStrLn . show
 
 
 -------------------------------------------------------------------------------
@@ -164,10 +165,7 @@ get
   -> m Row
 get cf k s cl = withCassandraPool $ \ Cassandra{..} -> do
   res <- wrapException $ C.get_slice (cProto, cProto) k cp (mkPredicate s) cl
-  cs <- throwing . return $ mapM castColumn res
-  case cs of
-    [] -> throw NotFoundException
-    _ -> return cs
+  throwing . return $ mapM castColumn res
   where
     cp = T.ColumnParent (Just cf) Nothing
 
