@@ -124,6 +124,7 @@ mkThriftCol :: Column -> IO C.Column
 mkThriftCol Column{..} = do
   now <- getTime
   return $ C.Column (Just colKey) (Just colVal) (Just now) colTTL
+mkThriftCol _ = error "mkThriftCol can only process regular columns."
 
 
 castColumn :: C.ColumnOrSuperColumn -> Either CassandraException Column

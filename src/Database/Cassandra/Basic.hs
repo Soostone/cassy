@@ -211,7 +211,9 @@ getMulti cf ks s cl = withCassandraPool $ \ Cassandra{..} -> do
 ------------------------------------------------------------------------------
 -- | Insert an entire row into the db.
 --
--- This will do as many round-trips as necessary to insert the full row.
+-- This will do as many round-trips as necessary to insert the full
+-- row. Please keep in mind that each column and each column of each
+-- super-column is sent to the server one by one.
 insert
   :: (MonadCassandra m)
   => ColumnFamily
@@ -220,11 +222,17 @@ insert
   -> Row
   -> m ()
 insert cf k cl row = withCassandraPool $ \ Cassandra{..} -> do
+  let insCol cp c = do
+        c' <- mkThriftCol c
+        C.insert (cProto, cProto) k cp c' cl
   forM_ row $ \ c -> do
-      c' <- mkThriftCol c
-      wrapException $ C.insert (cProto, cProto) k cp c' cl 
-  where
-    cp = T.ColumnParent (Just cf) Nothing
+    case c of
+      Column{} -> do
+        let cp = T.ColumnParent (Just cf) Nothing
+        insCol cp c
+      SuperColumn cn cols -> do
+        let cp = T.ColumnParent (Just cf) (Just cn)
+        mapM_ (insCol cp) cols
     
 
 ------------------------------------------------------------------------------

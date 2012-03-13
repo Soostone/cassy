@@ -78,6 +78,21 @@ Example usage:
             Just (Person nm age) -> return age
             Nothing -> error "Oh NO!!!"
 
+## Release Notes
+
+### Version 0.3
+
+* Added MonadCassandra typeclass, which is now used by *all*
+  operations by default.
+* Added a default Cas moand that instantiates MonadCassandra for
+  convenience. 
+* All Basic module ops now return results directly instead of an
+  Either wrapper. Each operation may raise a CassandraException.
+* Connection pooling now builds on top of the resource-pool library to
+  initiate connections to multiple servers in round-robin fashion.
+* Basic.insert now knows how to insert a SuperColumn.
+    
+    
       
 ## TODOs
 
