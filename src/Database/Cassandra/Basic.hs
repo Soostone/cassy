@@ -52,13 +52,16 @@ module Database.Cassandra.Basic
     , Row
     , ConsistencyLevel(..)
 
+    -- * Helpers
+    , CKey (..)
+    , packLong
     ) where
 
 
 -------------------------------------------------------------------------------
+import           Control.Applicative
 import           Control.Exception
 import           Control.Monad
-import           Control.Applicative
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Reader
 import           Data.ByteString.Lazy                       (ByteString)
@@ -66,10 +69,11 @@ import           Data.Map                                   (Map)
 import qualified Data.Map                                   as M
 import           Data.Maybe                                 (mapMaybe)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import qualified Database.Cassandra.Thrift.Cassandra_Types  as T
 import           Database.Cassandra.Thrift.Cassandra_Types  (ConsistencyLevel (..))
+import qualified Database.Cassandra.Thrift.Cassandra_Types  as T
 import           Prelude                                    hiding (catch)
 -------------------------------------------------------------------------------
+import           Database.Cassandra.Pack
 import           Database.Cassandra.Pool
 import           Database.Cassandra.Types
 -------------------------------------------------------------------------------

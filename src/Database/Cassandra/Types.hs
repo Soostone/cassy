@@ -5,17 +5,23 @@
 
 module Database.Cassandra.Types where
 
-import           Control.Monad
+-------------------------------------------------------------------------------
 import           Control.Exception
-import           Data.Generics
-import           Data.ByteString.Lazy (ByteString)
+import           Control.Monad
 import qualified Data.ByteString.Char8 as B
+import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as LB
+import           Data.Generics
 import           Data.Int (Int32, Int64)
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
+import qualified Data.Text.Encoding         as T
+import qualified Data.Text.Lazy             as LT
+import qualified Data.Text.Lazy.Encoding    as LT
 import           Data.Time
 import           Data.Time.Clock.POSIX
-
 import qualified Database.Cassandra.Thrift.Cassandra_Types as C
+-------------------------------------------------------------------------------
 
 
 -- | A 'Key' range selector to use with 'getMulti'.
@@ -176,4 +182,37 @@ getTime :: IO Int64
 getTime = do
   t <- getPOSIXTime
   return . fromIntegral . floor $ t * 1000000
+
+
+
+                             --------------------
+                             -- CKey Typeclass --
+                             --------------------
+
+------------------------------------------------------------------------------
+-- | A typeclass to enable using any string-like type for row and column keys
+class CKey a where
+  toBS    :: a -> ByteString
+  fromBS  :: ByteString -> a
+
+instance CKey String where
+    toBS = LB.pack
+    fromBS = LB.unpack
+
+instance CKey LT.Text where
+    toBS = LT.encodeUtf8
+    fromBS = LT.decodeUtf8
+
+instance CKey T.Text where
+    toBS = toBS . LT.fromChunks . return
+    fromBS = T.concat . LT.toChunks . fromBS
+
+instance CKey B.ByteString where
+    toBS = LB.fromChunks . return
+    fromBS = B.concat . LB.toChunks . fromBS
+
+instance CKey ByteString where
+    toBS = id
+    fromBS = id
+
 

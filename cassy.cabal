@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.3.1
+Version:             0.3.2
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -52,11 +52,13 @@ Library
     Database.Cassandra.JSON
     Database.Cassandra.Pool
     Database.Cassandra.Types
+    Database.Cassandra.Pack
   
   -- Packages needed in order to build this package.
   Build-depends:
       base >= 4 && < 5
     , bytestring
+    , binary
     , containers
     , network
     , time

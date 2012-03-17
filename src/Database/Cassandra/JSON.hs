@@ -10,9 +10,12 @@
 {-|
     A higher level module for working with Cassandra.
     
-    Row and Column keys can be any string-like type implementing the
-    CKey typeclass. You can add your own types by defining new instances
 
+    All row and column keys are standardized to be of strict types.
+    Row keys are Text, while Column keys are ByteString. This might change
+    in the future and we may revert to entirely ByteString keys.
+
+    
     Serialization and de-serialization of Column values are taken care of
     automatically using the ToJSON and FromJSON typeclasses.
 
@@ -23,10 +26,10 @@ module Database.Cassandra.JSON
   
     -- * Connection
       CPool
-    , Server(..)
+    , Server (..)
     , defServer
     , defServers
-    , KeySpace(..)
+    , KeySpace (..)
     , createCassandraPool
 
     -- * MonadCassandra Typeclass
@@ -44,17 +47,23 @@ module Database.Cassandra.JSON
     , delete
 
     -- * Necessary Types
-    , CKey(..)
-    , ModifyOperation(..)
-    , ColumnFamily(..)
-    , ConsistencyLevel(..)
-    , CassandraException(..)
-    , Selector(..)
-    , KeySelector(..)
+    , RowKey
+    , ColumnName
+    , ModifyOperation (..)
+    , ColumnFamily (..)
+    , ConsistencyLevel (..)
+    , CassandraException (..)
+    , Selector (..)
+    , KeySelector (..)
+    , KeyRangeType (..)
+    
+    -- * Helpers
+    , CKey (..)
+    , packLong
     
     ) where
 
-
+-------------------------------------------------------------------------------
 import           Control.Exception
 import           Control.Monad
 import           Data.Aeson                 as A
@@ -67,55 +76,26 @@ import           Data.Int                   (Int32, Int64)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
 import qualified Data.Text                  as T
+import           Data.Text                  (Text)
 import qualified Data.Text.Encoding         as T
 import qualified Data.Text.Lazy             as LT
 import qualified Data.Text.Lazy.Encoding    as LT
 import           Network
 import           Prelude                    hiding (catch)
-
+-------------------------------------------------------------------------------
 import           Database.Cassandra.Basic   hiding (get, getCol, delete, KeySelector (..), 
                                                     getMulti)
 import qualified Database.Cassandra.Basic   as CB
 import           Database.Cassandra.Pool
-import           Database.Cassandra.Types   hiding (KeySelector (..))
-
-
+import           Database.Cassandra.Types   hiding (KeySelector (..), ColumnName)
+import           Database.Cassandra.Pack
 -------------------------------------------------------------------------------
----- CKey Typeclass
--------------------------------------------------------------------------------
-
-
-------------------------------------------------------------------------------
--- | A typeclass to enable using any string-like type for row and column keys
-class CKey a where
-  toBS    :: a -> ByteString
-  fromBS  :: ByteString -> a
-
-instance CKey String where
-    toBS = LB.pack
-    fromBS = LB.unpack
-
-instance CKey LT.Text where
-    toBS = LT.encodeUtf8
-    fromBS = LT.decodeUtf8
-
-instance CKey T.Text where
-    toBS = toBS . LT.fromChunks . return
-    fromBS = T.concat . LT.toChunks . fromBS
-
-instance CKey B.ByteString where
-    toBS = LB.fromChunks . return
-    fromBS = B.concat . LB.toChunks . fromBS
-
-instance CKey ByteString where
-    toBS = id
-    fromBS = id
 
 
 
 -------------------------------------------------------------------------------
 -- | Convert regular column to a key-value pair
-col2val :: (CKey colKey, FromJSON a) => Column -> (colKey, a)
+col2val :: (FromJSON a) => Column -> (ColumnName, a)
 col2val (Column nm val _ _) =  (fromBS nm, maybe err id $ unMarshallJSON' val)
     where err = error "Value can't be parsed from JSON."
 col2val _ = error "col2val is not implemented for SuperColumns"
@@ -131,6 +111,10 @@ data ModifyOperation a =
   deriving (Eq,Show,Ord,Read)
 
 
+-------------------------------------------------------------------------------
+type RowKey = Text
+
+
 ------------------------------------------------------------------------------
 -- | A modify function that will fetch a specific column, apply modification
 -- function on it and save results back to Cassandra. 
@@ -144,10 +128,10 @@ data ModifyOperation a =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify
-  :: (MonadCassandra m, CKey rowKey, CKey colKey, ToJSON a, FromJSON a)
+  :: (MonadCassandra m, ToJSON a, FromJSON a)
   => ColumnFamily
-  -> rowKey
-  -> colKey
+  -> RowKey
+  -> ColumnName
   -> ConsistencyLevel
   -- ^ Read quorum
   -> ConsistencyLevel
@@ -185,10 +169,10 @@ modify cf k cn rcl wcl f =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify_
-  :: (MonadCassandra m, CKey rowKey, CKey colKey, ToJSON a, FromJSON a)
+  :: (MonadCassandra m, ToJSON a, FromJSON a)
   => ColumnFamily
-  -> rowKey
-  -> colKey
+  -> RowKey
+  -> ColumnName
   -> ConsistencyLevel
   -- ^ Read quorum
   -> ConsistencyLevel
@@ -210,10 +194,10 @@ modify_ cf k cn rcl wcl f =
 -------------------------------------------------------------------------------
 -- Simple insertion function making use of typeclasses
 insertCol
-    :: (MonadCassandra m, CKey rowKey, CKey colKey, ToJSON a)
+    :: (MonadCassandra m, ToJSON a)
     => ColumnFamily 
-    -> rowKey
-    -> colKey
+    -> RowKey
+    -> ColumnName
     -> ConsistencyLevel
     -> a -- ^ Content
     -> m ()
@@ -228,12 +212,12 @@ insertCol cf k cn cl a =
 -- ColumnFamily and contents of returned columns are cast into the
 -- target type.
 get
-    :: (MonadCassandra m, CKey rowKey, CKey colKey, FromJSON a)
+    :: (MonadCassandra m, FromJSON a)
     => ColumnFamily
-    -> rowKey
+    -> RowKey
     -> Selector
     -> ConsistencyLevel
-    -> m [(colKey, a)]
+    -> m [(ColumnName, a)]
 get cf k s cl = do
   res <- CB.get cf (toBS k) s cl
   return $ map col2val res
@@ -241,8 +225,8 @@ get cf k s cl = do
 
 -------------------------------------------------------------------------------
 data KeySelector 
-    = forall k. CKey k => Keys [k]
-    | forall k. CKey k => KeyRange KeyRangeType k k Int32
+    = Keys [RowKey]
+    | KeyRange KeyRangeType RowKey RowKey Int32
 
 
 -------------------------------------------------------------------------------
@@ -255,12 +239,12 @@ ksToBasicKS (KeyRange ty fr to i) = CB.KeyRange ty (toBS fr) (toBS to) i
 -- since we are auto-serializing from JSON, all the columns must be of
 -- the same data type.
 getMulti 
-    :: (MonadCassandra m, Ord rowKey, CKey rowKey, CKey colKey, FromJSON a)
+    :: (MonadCassandra m, FromJSON a)
     => ColumnFamily
     -> KeySelector 
     -> Selector 
     -> ConsistencyLevel
-    -> m (Map rowKey [(colKey, a)])
+    -> m (Map RowKey [(ColumnName, a)])
 getMulti cf ks s cl = do
   res <- CB.getMulti cf (ksToBasicKS ks) s cl
   return . M.fromList . map conv . M.toList $ res
@@ -271,10 +255,10 @@ getMulti cf ks s cl = do
 -------------------------------------------------------------------------------
 -- | Get a single column from a single row
 getCol
-    :: (MonadCassandra m, CKey rowKey, CKey colKey, FromJSON a)
+    :: (MonadCassandra m, FromJSON a)
     => ColumnFamily
-    -> rowKey
-    -> colKey
+    -> RowKey
+    -> ColumnName
     -> ConsistencyLevel
     -> m (Maybe a)
 getCol cf rk ck cl = do
@@ -282,7 +266,7 @@ getCol cf rk ck cl = do
     case res of
       Nothing -> return Nothing
       Just res' -> do
-          let (_ :: ByteString, x) = col2val res'
+          let (_, x) = col2val res'
           return $ Just x
 
 
@@ -291,10 +275,10 @@ getCol cf rk ck cl = do
 -- it throws an exception rather than returning an explicit Either
 -- value.
 delete 
-  :: (MonadCassandra m, CKey rowKey)
+  :: (MonadCassandra m)
   =>ColumnFamily
   -- ^ In 'ColumnFamily'
-  -> rowKey
+  -> RowKey
   -- ^ Key to be deleted
   -> Selector
   -- ^ Columns to be deleted
