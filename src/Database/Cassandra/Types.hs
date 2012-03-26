@@ -62,10 +62,12 @@ data Selector =
   deriving (Show)
 
 
+
+-------------------------------------------------------------------------------
 mkPredicate :: Selector -> C.SlicePredicate
 mkPredicate s = 
   let
-    allRange = C.SliceRange (Just "") (Just "") (Just False) (Just 100)
+    allRange = C.SliceRange (Just "") (Just "") (Just False) (Just 5000)
   in case s of
     All -> C.SlicePredicate Nothing (Just allRange)
     ColNames ks -> C.SlicePredicate (Just ks) Nothing
