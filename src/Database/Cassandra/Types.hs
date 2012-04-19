@@ -85,8 +85,15 @@ mkPredicate s =
 data Order = Regular | Reversed
   deriving (Show)
 
+
+-------------------------------------------------------------------------------
 renderOrd Regular = False
 renderOrd Reversed = True
+
+
+-------------------------------------------------------------------------------
+reverseOrder Regular = Reversed
+reverseOrder _ = Regular
 
 
 type ColumnFamily = String

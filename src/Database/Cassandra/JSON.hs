@@ -56,6 +56,8 @@ module Database.Cassandra.JSON
     , Selector (..)
     , KeySelector (..)
     , KeyRangeType (..)
+    , Order(..)
+    , reverseOrder
     
     -- * Helpers
     , CKey (..)
