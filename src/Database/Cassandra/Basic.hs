@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 
 module Database.Cassandra.Basic 
@@ -63,8 +64,7 @@ module Database.Cassandra.Basic
 import           Control.Applicative
 import           Control.Exception
 import           Control.Monad
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Reader
+import           Control.Monad.Reader
 import           Data.ByteString.Lazy                       (ByteString)
 import           Data.Map                                   (Map)
 import qualified Data.Map                                   as M
@@ -120,8 +120,7 @@ withCassandraPool f = do
 
 
 -------------------------------------------------------------------------------
-newtype Cas a = Cas { unCas :: ReaderT CPool IO a }
-    deriving (Functor,Applicative,Monad,MonadIO)
+type Cas a = ReaderT CPool IO a 
 
 
 -------------------------------------------------------------------------------
@@ -129,12 +128,12 @@ newtype Cas a = Cas { unCas :: ReaderT CPool IO a }
 -- your cassandra actions within the 'Cas' monad and supply them with
 -- a 'CPool' to execute.
 runCas :: Cas a -> CPool -> IO a
-runCas f p = runReaderT (unCas f) p 
+runCas = runReaderT
 
 
 -------------------------------------------------------------------------------
-instance MonadCassandra Cas where
-    getCassandraPool = Cas ask
+instance (MonadIO m) => MonadCassandra (ReaderT CPool m) where
+    getCassandraPool = ask
 
 
 ------------------------------------------------------------------------------

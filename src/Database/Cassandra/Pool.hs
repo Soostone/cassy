@@ -17,7 +17,6 @@ import Control.Applicative ((<$>))
 import Control.Concurrent.STM
 import Control.Exception (SomeException, catch, onException)
 import Control.Monad (forM_, forever, join, liftM2, unless, when)
-import Control.Monad.IO.Class (liftIO)
 import Data.ByteString (ByteString)
 import Data.List (partition)
 import "resource-pool" Data.Pool
