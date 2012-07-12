@@ -14,14 +14,18 @@ module Database.Cassandra.Pool
 
 -------------------------------------------------------------------------------
 import Control.Applicative ((<$>))
+import Control.Arrow
+import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception (SomeException, catch, onException)
+import Control.Exception (SomeException, handle, onException)
 import Control.Monad (forM_, forever, join, liftM2, unless, when)
 import Data.ByteString (ByteString)
-import Data.List (partition)
+import Data.List (partition, find)
+import Data.Maybe
 import "resource-pool" Data.Pool
 import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
+import qualified Database.Cassandra.Thrift.Cassandra_Types as C
 import Network
 import Prelude hiding (catch)
 import System.IO (hClose, Handle(..))
@@ -84,25 +88,56 @@ createCassandraPool
   -> IO CPool
 createCassandraPool servers numStripes perStripe maxIdle ks = do
     sring <- newTVarIO $ mkRing servers
-    createPool (cr sring) dest numStripes maxIdle perStripe
+    pool <- createPool (cr sring) dest numStripes maxIdle perStripe
+    forkIO (serverDiscoveryThread sring ks pool)
+    return pool
   where
     cr :: ServerRing -> IO Cassandra
-    cr sring = do
-      server <- atomically $ do
+    cr sring = handle (handler sring) $ do
+      (host, p) <- atomically $ do
         ring@Ring{..} <- readTVar sring
-        writeTVar sring $ next ring
         return current
-      crCon server
-        
-    crCon :: Server -> IO Cassandra
-    crCon (host, p) = do
+
       h <- hOpen (host, PortNumber (fromIntegral p))
       ft <- openFramedTransport h
       let p = BinaryProtocol ft
       C.set_keyspace (p,p) ks
+
+      modifyServers sring next
+
       return $ Cassandra h ft p
+
+    handler :: ServerRing -> SomeException -> IO Cassandra
+    handler sring e = do
+      modifyServers sring removeCurrent
+      cr sring
+      
     dest h = hClose $ cHandle h
 
+
+modifyServers :: TVar (Ring a) -> (Ring a -> Ring a) -> IO ()
+modifyServers sring f = atomically $ do
+    ring@Ring{..} <- readTVar sring
+    writeTVar sring $ f ring
+    return ()
+
+
+serverDiscoveryThread :: TVar (Ring Server)
+                      -> String
+                      -> Pool Cassandra
+                      -> IO b
+serverDiscoveryThread sring ks pool = forever $ do
+    threadDelay 5000000
+    withResource pool (updateServers sring ks)
+    
+
+updateServers :: TVar (Ring Server) -> String -> Cassandra -> IO ()
+updateServers sring ks (Cassandra _ _ p) = do
+    ranges <- C.describe_ring (p,p) ks
+    let hosts = concat $ catMaybes $ map C.f_TokenRange_endpoints ranges
+        servers = map (\e -> first (const e) defServer) hosts
+    print servers
+    modifyServers sring (addNewServers servers)
 
 
 -------------------------------------------------------------------------------
@@ -130,4 +165,21 @@ next Ring{..}
 next Ring{..} 
   | (n:rest) <- reverse (current : used)
   = Ring n [] rest
+
+removeCurrent :: Ring a -> Ring a
+removeCurrent Ring{..} 
+  | (n:rest) <- upcoming
+  = Ring n used rest
+removeCurrent Ring{..} 
+  | (n:rest) <- reverse used
+  = Ring n [] rest
+
+addNewServers :: [Server] -> Ring Server -> Ring Server
+addNewServers servers Ring{..} = Ring current used (new++upcoming)
+  where
+    new = filter (not . existing) servers
+    existing s = isJust (find (\a -> fst s == fst a) used)
+              || isJust (find (\a -> fst s == fst a) upcoming)
+              || (fst s == fst current)
+
 
