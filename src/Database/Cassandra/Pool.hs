@@ -1,7 +1,9 @@
-{-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
-{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE PackageImports  #-}
+{-# LANGUAGE PatternGuards   #-}
+{-# LANGUAGE RecordWildCards #-}
 
-module Database.Cassandra.Pool 
+module Database.Cassandra.Pool
     ( CPool
     , Server
     , defServer
@@ -13,27 +15,27 @@ module Database.Cassandra.Pool
     ) where
 
 -------------------------------------------------------------------------------
-import Control.Applicative ((<$>))
-import Control.Arrow
-import Control.Concurrent
-import Control.Concurrent.STM
-import Control.Exception (SomeException, handle, onException)
-import Control.Monad (forM_, forever, join, liftM2, unless, when)
-import Data.ByteString (ByteString)
-import Data.List (partition, find)
-import Data.Maybe
-import "resource-pool" Data.Pool
-import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
+import           Control.Applicative                        ((<$>))
+import           Control.Arrow
+import           Control.Concurrent
+import           Control.Concurrent.STM
+import           Control.Exception                          (SomeException, handle, onException)
+import           Control.Monad                              (forM_, forever, join, liftM2, unless, when)
+import           Data.ByteString                            (ByteString)
+import           Data.List                                  (find, partition)
+import           Data.Maybe
+import           Data.Pool
+import           Data.Time.Clock                            (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import qualified Database.Cassandra.Thrift.Cassandra_Types as C
-import Network
-import Prelude hiding (catch)
-import System.IO (hClose, Handle(..))
-import System.Mem.Weak (addFinalizer)
-import Thrift.Protocol.Binary
-import Thrift.Transport
-import Thrift.Transport.Framed
-import Thrift.Transport.Handle
+import qualified Database.Cassandra.Thrift.Cassandra_Types  as C
+import           Network
+import           Prelude                                    hiding (catch)
+import           System.IO                                  (Handle(..), hClose)
+import           System.Mem.Weak                            (addFinalizer)
+import           Thrift.Protocol.Binary
+import           Thrift.Transport
+import           Thrift.Transport.Framed
+import           Thrift.Transport.Handle
 -------------------------------------------------------------------------------
 
 
@@ -74,7 +76,7 @@ data Cassandra = Cassandra {
 --
 -- Each box in the cluster will get up to n connections. The pool will send
 -- queries in round-robin fashion to balance load on each box in the cluster.
-createCassandraPool 
+createCassandraPool
   :: [Server]
   -- ^ List of servers to connect to
   -> Int
@@ -96,6 +98,7 @@ createCassandraPool servers numStripes perStripe maxIdle ks = do
     cr sring = handle (handler sring) $ do
       (host, p) <- atomically $ do
         ring@Ring{..} <- readTVar sring
+        writeTVar sring (next ring)
         return current
 
       h <- hOpen (host, PortNumber (fromIntegral p))
@@ -103,18 +106,17 @@ createCassandraPool servers numStripes perStripe maxIdle ks = do
       let p = BinaryProtocol ft
       C.set_keyspace (p,p) ks
 
-      modifyServers sring next
-
       return $ Cassandra h ft p
 
     handler :: ServerRing -> SomeException -> IO Cassandra
     handler sring e = do
       modifyServers sring removeCurrent
       cr sring
-      
+
     dest h = hClose $ cHandle h
 
 
+-------------------------------------------------------------------------------
 modifyServers :: TVar (Ring a) -> (Ring a -> Ring a) -> IO ()
 modifyServers sring f = atomically $ do
     ring@Ring{..} <- readTVar sring
@@ -122,6 +124,7 @@ modifyServers sring f = atomically $ do
     return ()
 
 
+-------------------------------------------------------------------------------
 serverDiscoveryThread :: TVar (Ring Server)
                       -> String
                       -> Pool Cassandra
@@ -129,14 +132,15 @@ serverDiscoveryThread :: TVar (Ring Server)
 serverDiscoveryThread sring ks pool = forever $ do
     threadDelay 5000000
     withResource pool (updateServers sring ks)
-    
 
+
+-------------------------------------------------------------------------------
 updateServers :: TVar (Ring Server) -> String -> Cassandra -> IO ()
 updateServers sring ks (Cassandra _ _ p) = do
     ranges <- C.describe_ring (p,p) ks
     let hosts = concat $ catMaybes $ map C.f_TokenRange_endpoints ranges
         servers = map (\e -> first (const e) defServer) hosts
-    print servers
+    putStrLn $ "Cassy: Discovered new servers: " ++ show servers
     modifyServers sring (addNewServers servers)
 
 
@@ -159,21 +163,23 @@ mkRing (a:as) = Ring a [] as
 
 -------------------------------------------------------------------------------
 next :: Ring a -> Ring a
-next Ring{..} 
+next Ring{..}
   | (n:rest) <- upcoming
   = Ring n (current : used) rest
-next Ring{..} 
+next Ring{..}
   | (n:rest) <- reverse (current : used)
   = Ring n [] rest
 
+-------------------------------------------------------------------------------
 removeCurrent :: Ring a -> Ring a
-removeCurrent Ring{..} 
+removeCurrent Ring{..}
   | (n:rest) <- upcoming
   = Ring n used rest
-removeCurrent Ring{..} 
+removeCurrent Ring{..}
   | (n:rest) <- reverse used
   = Ring n [] rest
 
+-------------------------------------------------------------------------------
 addNewServers :: [Server] -> Ring Server -> Ring Server
 addNewServers servers Ring{..} = Ring current used (new++upcoming)
   where
