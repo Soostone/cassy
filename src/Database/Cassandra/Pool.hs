@@ -14,7 +14,7 @@ module Database.Cassandra.Pool
     , withResource
     ) where
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 import           Control.Applicative                        ((<$>))
 import           Control.Arrow
 import           Control.Concurrent
@@ -25,6 +25,8 @@ import           Data.ByteString                            (ByteString)
 import           Data.List                                  (find, partition)
 import           Data.Maybe
 import           Data.Pool
+import           Data.Set (Set)
+import qualified Data.Set                                   as S
 import           Data.Time.Clock                            (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
 import qualified Database.Cassandra.Thrift.Cassandra_Types  as C
@@ -36,7 +38,7 @@ import           Thrift.Protocol.Binary
 import           Thrift.Transport
 import           Thrift.Transport.Framed
 import           Thrift.Transport.Handle
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 
 
 ------------------------------------------------------------------------------
@@ -44,7 +46,7 @@ import           Thrift.Transport.Handle
 type CPool = Pool Cassandra
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 -- | A (ServerName, Port) tuple
 type Server = (HostName, Int)
 
@@ -59,11 +61,11 @@ defServers :: [Server]
 defServers = [defServer]
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 type KeySpace = String
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 data Cassandra = Cassandra {
     cHandle :: Handle
   , cFramed :: FramedTransport Handle
@@ -95,28 +97,28 @@ createCassandraPool servers numStripes perStripe maxIdle ks = do
     return pool
   where
     cr :: ServerRing -> IO Cassandra
-    cr sring = handle (handler sring) $ do
-      (host, p) <- atomically $ do
+    cr sring = do
+      s@(host, p) <- atomically $ do
         ring@Ring{..} <- readTVar sring
         writeTVar sring (next ring)
         return current
 
-      h <- hOpen (host, PortNumber (fromIntegral p))
-      ft <- openFramedTransport h
-      let p = BinaryProtocol ft
-      C.set_keyspace (p,p) ks
+      handle (handler sring s) $ do
+        h <- hOpen (host, PortNumber (fromIntegral p))
+        ft <- openFramedTransport h
+        let p = BinaryProtocol ft
+        C.set_keyspace (p,p) ks
+        return $ Cassandra h ft p
 
-      return $ Cassandra h ft p
-
-    handler :: ServerRing -> SomeException -> IO Cassandra
-    handler sring e = do
-      modifyServers sring removeCurrent
+    handler :: ServerRing -> Server -> SomeException -> IO Cassandra
+    handler sring server e = do
+      modifyServers sring (removeServer server)
       cr sring
 
     dest h = hClose $ cHandle h
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 modifyServers :: TVar (Ring a) -> (Ring a -> Ring a) -> IO ()
 modifyServers sring f = atomically $ do
     ring@Ring{..} <- readTVar sring
@@ -124,7 +126,7 @@ modifyServers sring f = atomically $ do
     return ()
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 serverDiscoveryThread :: TVar (Ring Server)
                       -> String
                       -> Pool Cassandra
@@ -134,7 +136,7 @@ serverDiscoveryThread sring ks pool = forever $ do
     withResource pool (updateServers sring ks)
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 updateServers :: TVar (Ring Server) -> String -> Cassandra -> IO ()
 updateServers sring ks (Cassandra _ _ p) = do
     ranges <- C.describe_ring (p,p) ks
@@ -144,48 +146,48 @@ updateServers sring ks (Cassandra _ _ p) = do
     modifyServers sring (addNewServers servers)
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 type ServerRing = TVar (Ring Server)
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 data Ring a = Ring {
-    current :: !a
+    allItems :: Set a
+  , current :: !a
   , used :: [a]
   , upcoming :: [a]
   }
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 mkRing [] = error "Can't make a ring from empty list"
-mkRing (a:as) = Ring a [] as
+mkRing (a:as) = Ring S.empty a [] as
 
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 next :: Ring a -> Ring a
 next Ring{..}
   | (n:rest) <- upcoming
-  = Ring n (current : used) rest
+  = Ring allItems n (current : used) rest
 next Ring{..}
   | (n:rest) <- reverse (current : used)
-  = Ring n [] rest
+  = Ring allItems n [] rest
 
--------------------------------------------------------------------------------
-removeCurrent :: Ring a -> Ring a
-removeCurrent Ring{..}
-  | (n:rest) <- upcoming
-  = Ring n used rest
-removeCurrent Ring{..}
-  | (n:rest) <- reverse used
-  = Ring n [] rest
-
--------------------------------------------------------------------------------
-addNewServers :: [Server] -> Ring Server -> Ring Server
-addNewServers servers Ring{..} = Ring current used (new++upcoming)
+------------------------------------------------------------------------------
+removeServer :: Ord a => a -> Ring a -> Ring a
+removeServer s r@Ring{..}
+  | s `S.member` allItems = Ring (S.delete s allItems) current' used' upcoming'
+  | otherwise             = r
   where
-    new = filter (not . existing) servers
-    existing s = isJust (find (\a -> fst s == fst a) used)
-              || isJust (find (\a -> fst s == fst a) upcoming)
-              || (fst s == fst current)
+    used' = filter (/=s) used
+    (current':upcoming') = filter (/=s) (current:upcoming)
+
+------------------------------------------------------------------------------
+addNewServers :: [Server] -> Ring Server -> Ring Server
+addNewServers servers Ring{..} = Ring all' current' used' upcoming'
+  where
+    all' = S.fromList servers
+    used' = filter (`S.member` all') used
+    (current':upcoming') = filter (`S.member` all') (current:upcoming)
 
 
