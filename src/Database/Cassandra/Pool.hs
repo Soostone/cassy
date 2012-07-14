@@ -25,7 +25,7 @@ import           Data.ByteString                            (ByteString)
 import           Data.List                                  (find, partition)
 import           Data.Maybe
 import           Data.Pool
-import           Data.Set (Set)
+import           Data.Set                                   (Set)
 import qualified Data.Set                                   as S
 import           Data.Time.Clock                            (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
@@ -132,8 +132,8 @@ serverDiscoveryThread :: TVar (Ring Server)
                       -> Pool Cassandra
                       -> IO b
 serverDiscoveryThread sring ks pool = forever $ do
-    threadDelay 5000000
     withResource pool (updateServers sring ks)
+    threadDelay 60000000
 
 
 ------------------------------------------------------------------------------
@@ -173,6 +173,7 @@ next Ring{..}
   | (n:rest) <- reverse (current : used)
   = Ring allItems n [] rest
 
+
 ------------------------------------------------------------------------------
 removeServer :: Ord a => a -> Ring a -> Ring a
 removeServer s r@Ring{..}
@@ -182,11 +183,13 @@ removeServer s r@Ring{..}
     used' = filter (/=s) used
     (current':upcoming') = filter (/=s) (current:upcoming)
 
+
 ------------------------------------------------------------------------------
 addNewServers :: [Server] -> Ring Server -> Ring Server
-addNewServers servers Ring{..} = Ring all' current' used' upcoming'
+addNewServers servers Ring{..} = Ring all' current' used' (new ++ upcoming')
   where
     all' = S.fromList servers
+    new = S.toList $ all' S.\\ allItems
     used' = filter (`S.member` all') used
     (current':upcoming') = filter (`S.member` all') (current:upcoming)
 
