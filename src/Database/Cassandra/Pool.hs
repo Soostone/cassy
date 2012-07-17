@@ -22,7 +22,7 @@ import           Control.Concurrent.STM
 import           Control.Exception                          (SomeException, handle, onException)
 import           Control.Monad                              (forM_, forever, join, liftM2, unless, when)
 import           Data.ByteString                            (ByteString)
-import           Data.List                                  (find, partition)
+import           Data.List                                  (find, nub, partition)
 import           Data.Maybe
 import           Data.Pool
 import           Data.Set                                   (Set)
@@ -141,7 +141,7 @@ updateServers :: TVar (Ring Server) -> String -> Cassandra -> IO ()
 updateServers sring ks (Cassandra _ _ p) = do
     ranges <- C.describe_ring (p,p) ks
     let hosts = concat $ catMaybes $ map C.f_TokenRange_endpoints ranges
-        servers = map (\e -> first (const e) defServer) hosts
+        servers = nub $ map (\e -> first (const e) defServer) hosts
     putStrLn $ "Cassy: Discovered new servers: " ++ show servers
     modifyServers sring (addNewServers servers)
 
