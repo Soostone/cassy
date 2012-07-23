@@ -142,7 +142,7 @@ updateServers sring ks (Cassandra _ _ p) = do
     ranges <- C.describe_ring (p,p) ks
     let hosts = concat $ catMaybes $ map C.f_TokenRange_endpoints ranges
         servers = nub $ map (\e -> first (const e) defServer) hosts
-    putStrLn $ "Cassy: Discovered new servers: " ++ show servers
+    -- putStrLn $ "Cassy: Discovered new servers: " ++ show servers
     modifyServers sring (addNewServers servers)
 
 
