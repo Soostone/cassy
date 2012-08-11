@@ -83,6 +83,16 @@ class CasType a where
     decodeCas :: ByteString -> a
 
 
+instance CasType B.ByteString where
+    encodeCas = fromStrict
+    decodeCas = toStrict
+
+
+instance CasType LB.ByteString where
+    encodeCas = id
+    decodeCas = id
+
+
 instance CasType TAscii where
     encodeCas = getAscii
     decodeCas = TAscii

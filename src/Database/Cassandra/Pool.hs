@@ -12,6 +12,9 @@ module Database.Cassandra.Pool
     , Cassandra (..)
     , createCassandraPool
     , withResource
+
+    -- * Low Level Utilities
+    , openThrift
     ) where
 
 ------------------------------------------------------------------------------
@@ -104,11 +107,9 @@ createCassandraPool servers numStripes perStripe maxIdle ks = do
         return current
 
       handle (handler sring s) $ do
-        h <- hOpen (host, PortNumber (fromIntegral p))
-        ft <- openFramedTransport h
-        let p = BinaryProtocol ft
-        C.set_keyspace (p,p) ks
-        return $ Cassandra h ft p
+          (h,ft,proto) <- openThrift host p
+          C.set_keyspace (proto, proto) ks
+          return $ Cassandra h ft proto
 
     handler :: ServerRing -> Server -> SomeException -> IO Cassandra
     handler sring server e = do
@@ -116,6 +117,15 @@ createCassandraPool servers numStripes perStripe maxIdle ks = do
       cr sring
 
     dest h = hClose $ cHandle h
+
+
+-------------------------------------------------------------------------------
+-- | Open underlying thrift connection
+openThrift host port = do
+    h <- hOpen (host, PortNumber (fromIntegral port))
+    ft <- openFramedTransport h
+    let p = BinaryProtocol ft
+    return (h, ft, p)
 
 
 ------------------------------------------------------------------------------

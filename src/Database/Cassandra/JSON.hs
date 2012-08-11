@@ -107,9 +107,11 @@ import           Database.Cassandra.Types   hiding (ColumnName, KeySelector(..))
 
 -------------------------------------------------------------------------------
 -- | Convert regular column to a key-value pair
-col2val :: (FromJSON a) => Column -> (ColumnName, a)
-col2val (Column nm val _ _) =  (fromColKey' nm, maybe err id $ unMarshallJSON' val)
-    where err = error "Value can't be parsed from JSON."
+col2val :: (FromJSON a, CasType k) => Column -> (k, a)
+col2val c = f $ unpackCol c
+    where
+      f (k, val) = (k, maybe err id $ unMarshallJSON' val)
+      err = error "Value can't be parsed from JSON."
 col2val _ = error "col2val is not implemented for SuperColumns"
 
 
@@ -206,15 +208,16 @@ modify_ cf k cn rcl wcl f =
 -------------------------------------------------------------------------------
 -- Simple insertion function making use of typeclasses
 insertCol
-    :: (MonadCassandra m, ToJSON a)
+    :: (MonadCassandra m, ToJSON a, CasType k)
     => ColumnFamily
     -> RowKey
-    -> ColumnName
+    -> k
+    -- ^ Column name. See 'CasType' for what you can use here.
     -> ConsistencyLevel
     -> a -- ^ Content
     -> m ()
-insertCol cf k cn cl a =
-    insert cf (toColKey k) cl [col (toColKey cn) (marshallJSON' a)]
+insertCol cf rk cn cl a =
+    insert cf (toColKey rk) cl [packCol (cn, marshallJSON' a)]
 
 
 ------------------------------------------------------------------------------
@@ -224,12 +227,14 @@ insertCol cf k cn cl a =
 -- ColumnFamily and contents of returned columns are cast into the
 -- target type.
 get
-    :: (MonadCassandra m, FromJSON a)
+    :: (MonadCassandra m, FromJSON a, CasType k)
     => ColumnFamily
     -> RowKey
     -> Selector
+    -- ^ A slice selector
     -> ConsistencyLevel
-    -> m [(ColumnName, a)]
+    -> m [(k, a)]
+    -- ^ List of key-value pairs. See 'CasType' for what key types you can use.
 get cf k s cl = do
   res <- CB.get cf (toColKey k) s cl
   return $ map col2val res
@@ -278,7 +283,7 @@ getCol cf rk ck cl = do
     case res of
       Nothing -> return Nothing
       Just res' -> do
-          let (_, x) = col2val res'
+          let (_ :: ByteString, x) = col2val res'
           return $ Just x
 
 

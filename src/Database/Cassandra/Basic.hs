@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE NoMonomorphismRestriction  #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PatternGuards              #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -53,6 +54,9 @@ module Database.Cassandra.Basic
     , Value
     , Column(..)
     , col
+    , packCol
+    , unpackCol
+    , packKey
     , Row
     , ConsistencyLevel(..)
 
@@ -141,8 +145,8 @@ type Cas a = ReaderT CPool IO a
 -- | Main running function when using the ad-hoc Cas monad. Just write
 -- your cassandra actions within the 'Cas' monad and supply them with
 -- a 'CPool' to execute.
-runCas :: Cas a -> CPool -> IO a
-runCas = runReaderT
+runCas :: CPool -> Cas a -> IO a
+runCas = flip runReaderT
 
 
 -------------------------------------------------------------------------------
@@ -236,8 +240,9 @@ insert
   :: (MonadCassandra m)
   => ColumnFamily
   -> Key
+  -- ^ Row key
   -> ConsistencyLevel
-  -> Row
+  -> [Column]
   -> m ()
 insert cf k cl row = withCassandraPool $ \ Cassandra{..} -> do
   let insCol cp c = do
@@ -252,6 +257,24 @@ insert cf k cl row = withCassandraPool $ \ Cassandra{..} -> do
         let cp = T.ColumnParent (Just cf) (Just cn)
         mapM_ (insCol cp) cols
 
+
+-------------------------------------------------------------------------------
+-- | Pack key-value pair into 'Column' form ready to be written to Cassandra
+packCol :: CasType k => (k, ByteString) -> Column
+packCol (k, v) = col (packKey k) v
+
+
+-------------------------------------------------------------------------------
+-- | Unpack a Cassandra 'Column' into a more convenient (k,v) form
+unpackCol :: CasType k => Column -> (k, Value)
+unpackCol (Column k v _ _) = (decodeCas k, v)
+unpackCol _ = error "unpackcol unimplemented for SuperColumn types"
+
+
+-------------------------------------------------------------------------------
+-- | Pack a column key into binary, ready for submission to Cassandra
+packKey :: CasType a => a -> ByteString
+packKey = encodeCas
 
 ------------------------------------------------------------------------------
 -- | Delete an entire row, specific columns or a specific sub-set of columns
