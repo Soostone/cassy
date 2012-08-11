@@ -1,6 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE OverlappingInstances        #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverlappingInstances #-}
+{-# LANGUAGE RankNTypes           #-}
 
 {-| A Collection of utilities for binary packing values into Bytestring |-}
 
@@ -31,39 +31,12 @@ import           Data.List
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as T
+import qualified Data.Text.Lazy             as LT
+import qualified Data.Text.Lazy.Encoding    as LT
+
 import           Data.Time
 -------------------------------------------------------------------------------
 
-
--------------------------------------------------------------------------------
--- | Additinal cases will be added here in the future
-data CasColumn
-    = CBytes TBytes
-    -- | CLong Integer
-    -- | CInt Integer
-    -- | CInt32 Int32
-    -- | CUtf T.Text
-    -- | CAscii B.ByteString
-
-    -- | CUUID ByteString
-    -- | CDouble Double
-    -- | CDate Day
-    -- | CBool Bool
-    -- | CComposite [CasColumn]
-
-
-packCol (CBytes x) = encodeCas x
--- packCol (CBytes x) = encodeCas . TBytes $ LB.fromChunks . return $ x
--- packCol (CLong x) = encodeCas $ TLong x
--- packCol (CInt x) = encodeCas $ TInt x
--- packCol (CInt32 x) = encodeCas $ TInt32 x
--- packCol (CUtf x) = encodeCas $ TUtf8 x
--- packCol (CAscii x) = encodeCas $ TAscii $ LB.fromChunks . return $ x
-
-
--------------------------------------------------------------------------------
-unpackCol :: CasType a => (a -> CasColumn) -> ByteString -> CasColumn
-unpackCol f = f . decodeCas
 
 
 -------------------------------------------------------------------------------
@@ -78,6 +51,30 @@ newtype TUtf8 = TUtf8 { getUtf8 :: Text } deriving (Eq,Show,Read,Ord)
 
 
 -------------------------------------------------------------------------------
+-- | This typeclass defines and maps to haskell types that Cassandra
+-- natively knows about and uses in sorting and potentially validating
+-- column key values.
+--
+-- All column keys are eventually sent to and received from Cassandra
+-- in binary form. This typeclass allows us to map some Haskell type
+-- definitions to their binary representation. The correct binary
+-- serialization is handled for you behind the scenes.
+--
+-- For simplest cases, just use one of the string-like instances, e.g.
+-- 'ByteString', 'String' or 'Text'. Please keep in mind that these
+-- are just mapped to untyped BytesType.
+--
+-- Remember that for special column types, such as 'TLong', to have
+-- any effect, your ColumnFamily must have been created with that
+-- comparator or validator. Otherwise you're just encoding/decoding
+-- integer values without any Cassandra support for sorting or
+-- correctness.
+--
+-- The Python library pycassa has a pretty good tutorial to learn more.
+--
+-- Tuple instances support fixed ComponentType columns. Example:
+--
+-- > insert "testCF" "row1" [packCol ((TLong 124, TAscii "Hello"), "some content")]
 class CasType a where
     encodeCas :: a -> ByteString
     decodeCas :: ByteString -> a
@@ -86,6 +83,21 @@ class CasType a where
 instance CasType B.ByteString where
     encodeCas = fromStrict
     decodeCas = toStrict
+
+
+instance CasType String where
+    encodeCas = LB.pack
+    decodeCas = LB.unpack
+
+
+instance CasType LT.Text where
+    encodeCas = encodeCas . LT.encodeUtf8
+    decodeCas =  LT.decodeUtf8
+
+
+instance CasType T.Text where
+    encodeCas = encodeCas . LT.fromChunks . return
+    decodeCas = T.concat . LT.toChunks . decodeCas
 
 
 instance CasType LB.ByteString where
@@ -108,26 +120,36 @@ instance CasType TCounter where
     decodeCas = TCounter
 
 
+-------------------------------------------------------------------------------
+-- | Pack as a 4 byte number
 instance CasType TInt32 where
     encodeCas = runPut . putWord32be . fromIntegral . getInt32
     decodeCas = TInt32 . fromIntegral . runGet getWord32be
 
 
+-------------------------------------------------------------------------------
+-- | Pack as an 8 byte number - same as 'TLong'
 instance CasType TInt where
     encodeCas = runPut . putWord64be . fromIntegral . getInt
     decodeCas = TInt . fromIntegral . runGet getWord64be
 
 
+-------------------------------------------------------------------------------
+-- | Pack as an 8 byte unsigned number; negative signs are lost.
 instance CasType TLong where
     encodeCas = runPut . putWord64be . fromIntegral . getLong
     decodeCas = TLong . fromIntegral . runGet getWord64be
 
 
+-------------------------------------------------------------------------------
+-- | Encode and decode as Utf8 'Text'
 instance CasType TUtf8 where
     encodeCas = LB.fromChunks . return . T.encodeUtf8 . getUtf8
     decodeCas = TUtf8 . T.decodeUtf8 . B.concat . LB.toChunks
 
 
+-------------------------------------------------------------------------------
+-- | Composite types - see Cassandra or pycassa docs to understand
 instance (CasType a, CasType b) => CasType (a,b) where
     encodeCas (a, b) = runPut $ do
         putSegment a sep

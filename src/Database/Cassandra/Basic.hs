@@ -157,17 +157,18 @@ instance (MonadIO m) => MonadCassandra (ReaderT CPool m) where
 ------------------------------------------------------------------------------
 -- | Get a single key-column value.
 getCol
-  :: (MonadCassandra m)
+  :: (MonadCassandra m, CasType k)
   => ColumnFamily
-  -> Key
+  -> ByteString
   -- ^ Row key
-  -> ColumnName
-  -- ^ Column/SuperColumn name
+  -> k
+  -- ^ Column/SuperColumn key; see 'CasType' for what it can be. Use
+  -- ByteString in the simple case.
   -> ConsistencyLevel
   -- ^ Read quorum
   -> m (Maybe Column)
 getCol cf k cn cl = do
-    res <- get cf k (ColNames [cn]) cl
+    res <- get cf k (ColNames [encodeCas cn]) cl
     case res of
       [] -> return Nothing
       x:_ -> return $ Just x
@@ -179,7 +180,7 @@ get
   :: (MonadCassandra m)
   => ColumnFamily
   -- ^ in ColumnFamily
-  -> Key
+  -> ByteString
   -- ^ Row key to get
   -> Selector
   -- ^ Slice columns with selector
@@ -236,13 +237,16 @@ getMulti cf ks s cl = withCassandraPool $ \ Cassandra{..} -> do
 -- This will do as many round-trips as necessary to insert the full
 -- row. Please keep in mind that each column and each column of each
 -- super-column is sent to the server one by one.
+--
+-- > insert "testCF" "row1" ONE [packCol ("column key", "some column content")]
 insert
   :: (MonadCassandra m)
   => ColumnFamily
-  -> Key
+  -> ByteString
   -- ^ Row key
   -> ConsistencyLevel
   -> [Column]
+  -- ^ best way to make these columns is through "packCol"
   -> m ()
 insert cf k cl row = withCassandraPool $ \ Cassandra{..} -> do
   let insCol cp c = do
