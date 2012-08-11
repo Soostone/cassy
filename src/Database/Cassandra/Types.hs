@@ -1,24 +1,27 @@
+{-# LANGUAGE DeriveDataTypeable   #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE NamedFieldPuns       #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE PatternGuards        #-}
+{-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
 
 module Database.Cassandra.Types where
 
 -------------------------------------------------------------------------------
+import           Control.Error
 import           Control.Exception
 import           Control.Monad
-import qualified Data.ByteString.Char8 as B
-import           Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy.Char8 as LB
+import qualified Data.ByteString.Char8                     as B
+import           Data.ByteString.Lazy                      (ByteString)
+import qualified Data.ByteString.Lazy.Char8                as LB
 import           Data.Generics
-import           Data.Int (Int32, Int64)
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
-import qualified Data.Text.Lazy             as LT
-import qualified Data.Text.Lazy.Encoding    as LT
+import           Data.Int                                  (Int32, Int64)
+import           Data.Text                                 (Text)
+import qualified Data.Text                                 as T
+import qualified Data.Text.Encoding                        as T
+import qualified Data.Text.Lazy                            as LT
+import qualified Data.Text.Lazy.Encoding                   as LT
 import           Data.Time
 import           Data.Time.Clock.POSIX
 import qualified Database.Cassandra.Thrift.Cassandra_Types as C
@@ -26,7 +29,7 @@ import qualified Database.Cassandra.Thrift.Cassandra_Types as C
 
 
 -- | A 'Key' range selector to use with 'getMulti'.
-data KeySelector = 
+data KeySelector =
     Keys [Key]
   -- ^ Just a list of keys to get
   | KeyRange KeyRangeType Key Key Int32
@@ -35,7 +38,7 @@ data KeySelector =
   deriving (Show)
 
 
--- | Encodes the Key vs. Token options in the thrift API. 
+-- | Encodes the Key vs. Token options in the thrift API.
 --
 -- 'InclusiveRange' ranges are just plain intuitive range queries.
 -- 'WrapAround' ranges are also inclusive, but they wrap around the ring.
@@ -51,7 +54,7 @@ mkKeyRange (KeyRange ty st end cnt) = case ty of
 --
 -- Remember that SuperColumns are always fully deserialized, so we don't offer
 -- a way to filter columns within a 'SuperColumn'.
-data Selector = 
+data Selector =
     All
   -- ^ Return everything in 'Row'
   | ColNames [ColumnName]
@@ -66,17 +69,17 @@ data Selector =
 
 -------------------------------------------------------------------------------
 mkPredicate :: Selector -> C.SlicePredicate
-mkPredicate s = 
+mkPredicate s =
   let
     allRange = C.SliceRange (Just "") (Just "") (Just False) (Just 5000)
   in case s of
     All -> C.SlicePredicate Nothing (Just allRange)
     ColNames ks -> C.SlicePredicate (Just ks) Nothing
-    Range st end ord cnt -> 
+    Range st end ord cnt ->
       let
         st' = st `mplus` Just ""
         end' = end `mplus` Just ""
-      in C.SlicePredicate Nothing 
+      in C.SlicePredicate Nothing
           (Just (C.SliceRange st' end' (Just $ renderOrd ord) (Just cnt)))
 
 
@@ -112,7 +115,7 @@ type Value = ByteString
 ------------------------------------------------------------------------------
 -- | A Column is either a single key-value pair or a SuperColumn with an
 -- arbitrary number of key-value pairs
-data Column = 
+data Column =
     SuperColumn ColumnName [Column]
   | Column {
       colKey :: ColumnName
@@ -146,12 +149,12 @@ mkThriftCol _ = error "mkThriftCol can only process regular columns."
 castColumn :: C.ColumnOrSuperColumn -> Either CassandraException Column
 castColumn x | Just c <- C.f_ColumnOrSuperColumn_column x = castCol c
              | Just c <- C.f_ColumnOrSuperColumn_super_column x = castSuperCol c
-castColumn _ = 
+castColumn _ =
   Left $ ConversionException "castColumn: Unsupported/unexpected ColumnOrSuperColumn type"
 
 
 castCol :: C.Column -> Either CassandraException Column
-castCol c 
+castCol c
   | Just nm <- C.f_Column_name c
   , Just val <- C.f_Column_value c
   , Just ts <- C.f_Column_timestamp c
@@ -161,7 +164,7 @@ castCol _ = Left $ ConversionException "Can't parse Column"
 
 
 castSuperCol :: C.SuperColumn -> Either CassandraException Column
-castSuperCol c 
+castSuperCol c
   | Just nm <- C.f_SuperColumn_name c
   , Just cols <- C.f_SuperColumn_columns c
   , Right cols' <- mapM castCol cols
@@ -169,7 +172,7 @@ castSuperCol c
 castSuperCol _ = Left $ ConversionException "Can't parse SuperColumn"
 
 
-data CassandraException = 
+data CassandraException =
     NotFoundException
   | InvalidRequestException String
   | UnavailableException
@@ -202,27 +205,46 @@ getTime = do
 ------------------------------------------------------------------------------
 -- | A typeclass to enable using any string-like type for row and column keys
 class CKey a where
-  toBS    :: a -> ByteString
-  fromBS  :: ByteString -> a
+  toColKey    :: a -> ByteString
+  fromColKey  :: ByteString -> Either String a
+
+
+-------------------------------------------------------------------------------
+-- | Raise an error if conversion fails
+fromColKey' :: CKey a => ByteString -> a
+fromColKey' = either error id . fromColKey
+
+
+-------------------------------------------------------------------------------
+-- | For easy composite keys, just serialize your data type to a list
+-- of bytestrings, we'll concat them and turn them into column keys.
+instance CKey [B.ByteString] where
+    toColKey xs = LB.intercalate ":" $ map toColKey xs
+    fromColKey str = mapM fromColKey $ LB.split ':' str
+
 
 instance CKey String where
-    toBS = LB.pack
-    fromBS = LB.unpack
+    toColKey = LB.pack
+    fromColKey = return . LB.unpack
+
 
 instance CKey LT.Text where
-    toBS = LT.encodeUtf8
-    fromBS = LT.decodeUtf8
+    toColKey = LT.encodeUtf8
+    fromColKey = return `fmap` LT.decodeUtf8
+
 
 instance CKey T.Text where
-    toBS = toBS . LT.fromChunks . return
-    fromBS = T.concat . LT.toChunks . fromBS
+    toColKey = toColKey . LT.fromChunks . return
+    fromColKey = fmap (T.concat . LT.toChunks) . fromColKey
+
 
 instance CKey B.ByteString where
-    toBS = LB.fromChunks . return
-    fromBS = B.concat . LB.toChunks . fromBS
+    toColKey = LB.fromChunks . return
+    fromColKey = fmap (B.concat . LB.toChunks) . fromColKey
+
 
 instance CKey ByteString where
-    toBS = id
-    fromBS = id
+    toColKey = id
+    fromColKey = return
 
 

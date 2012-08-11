@@ -1,11 +1,13 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternGuards, NamedFieldPuns, RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PatternGuards              #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 
-module Database.Cassandra.Basic 
+module Database.Cassandra.Basic
 
     (
 
@@ -16,7 +18,7 @@ module Database.Cassandra.Basic
     , defServers
     , KeySpace
     , createCassandraPool
-    
+
     -- * MonadCassandra Typeclass
     , MonadCassandra (..)
     , Cas (..)
@@ -56,7 +58,19 @@ module Database.Cassandra.Basic
 
     -- * Helpers
     , CKey (..)
-    , packLong
+    , fromColKey'
+
+    -- * Working with column types
+    , CasType (..)
+    , TAscii (..)
+    , TBytes (..)
+    , TCounter (..)
+    , TInt (..)
+    , TInt32 (..)
+    , TUtf8 (..)
+    , TUUID (..)
+    , TLong (..)
+    , Exclusive (..)
     ) where
 
 
@@ -70,7 +84,7 @@ import           Data.Map                                   (Map)
 import qualified Data.Map                                   as M
 import           Data.Maybe                                 (mapMaybe)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import           Database.Cassandra.Thrift.Cassandra_Types  (ConsistencyLevel (..))
+import           Database.Cassandra.Thrift.Cassandra_Types  (ConsistencyLevel(..))
 import qualified Database.Cassandra.Thrift.Cassandra_Types  as T
 import           Prelude                                    hiding (catch)
 -------------------------------------------------------------------------------
@@ -91,7 +105,7 @@ import           Database.Cassandra.Types
 --   flip runCas pool $ do
 --     get "CF1" "CF1" All ONE
 --     getCol "CF1" "darak" "eben" ONE
---     insert "CF1" "test1" ONE [col "col1" "val1", col "col2" "val2"] 
+--     insert "CF1" "test1" ONE [col "col1" "val1", col "col2" "val2"]
 --     get  "CF1" "CF1" All ONE >>= liftIO . print
 --     get  "CF1" "not here" All ONE >>= liftIO . print
 --     delete  "CF1" "CF1" (ColNames ["col2"]) ONE
@@ -120,7 +134,7 @@ withCassandraPool f = do
 
 
 -------------------------------------------------------------------------------
-type Cas a = ReaderT CPool IO a 
+type Cas a = ReaderT CPool IO a
 
 
 -------------------------------------------------------------------------------
@@ -138,14 +152,14 @@ instance (MonadIO m) => MonadCassandra (ReaderT CPool m) where
 
 ------------------------------------------------------------------------------
 -- | Get a single key-column value.
-getCol 
+getCol
   :: (MonadCassandra m)
-  => ColumnFamily 
-  -> Key 
+  => ColumnFamily
+  -> Key
   -- ^ Row key
   -> ColumnName
   -- ^ Column/SuperColumn name
-  -> ConsistencyLevel 
+  -> ConsistencyLevel
   -- ^ Read quorum
   -> m (Maybe Column)
 getCol cf k cn cl = do
@@ -157,15 +171,15 @@ getCol cf k cn cl = do
 
 ------------------------------------------------------------------------------
 -- | An arbitrary get operation - slice with 'Selector'
-get 
+get
   :: (MonadCassandra m)
-  => ColumnFamily 
+  => ColumnFamily
   -- ^ in ColumnFamily
-  -> Key 
+  -> Key
   -- ^ Row key to get
-  -> Selector 
+  -> Selector
   -- ^ Slice columns with selector
-  -> ConsistencyLevel 
+  -> ConsistencyLevel
   -> m Row
 get cf k s cl = withCassandraPool $ \ Cassandra{..} -> do
   res <- wrapException $ C.get_slice (cProto, cProto) k cp (mkPredicate s) cl
@@ -176,14 +190,14 @@ get cf k s cl = withCassandraPool $ \ Cassandra{..} -> do
 
 ------------------------------------------------------------------------------
 -- | Do multiple 'get's in one DB hit
-getMulti 
+getMulti
   :: (MonadCassandra m)
-  => ColumnFamily 
+  => ColumnFamily
   -> KeySelector
   -- ^ A selection of rows to fetch in one hit
-  -> Selector 
+  -> Selector
   -- ^ Subject to column selector conditions
-  -> ConsistencyLevel 
+  -> ConsistencyLevel
   -> m (Map ByteString Row)
   -- ^ A Map from Row keys to 'Row's is returned
 getMulti cf ks s cl = withCassandraPool $ \ Cassandra{..} -> do
@@ -192,21 +206,21 @@ getMulti cf ks s cl = withCassandraPool $ \ Cassandra{..} -> do
       res <- wrapException $ C.multiget_slice (cProto, cProto) xs cp (mkPredicate s) cl
       return $ M.mapMaybe f res
     KeyRange {} -> do
-      res <- wrapException $ 
+      res <- wrapException $
         C.get_range_slices (cProto, cProto) cp (mkPredicate s) (mkKeyRange ks) cl
       return $ collectKeySlices res
   where
     collectKeySlices :: [T.KeySlice] -> Map ByteString Row
     collectKeySlices xs = M.fromList $ mapMaybe collectKeySlice xs
 
-    collectKeySlice (T.KeySlice (Just k) (Just xs)) = 
+    collectKeySlice (T.KeySlice (Just k) (Just xs)) =
       case mapM castColumn xs of
         Left _ -> Nothing
         Right xs' -> Just (k, xs')
     collectKeySlice _ = Nothing
 
     cp = T.ColumnParent (Just cf) Nothing
-    f xs = 
+    f xs =
       case mapM castColumn xs of
         Left _ -> Nothing
         Right xs' -> Just xs'
@@ -237,12 +251,12 @@ insert cf k cl row = withCassandraPool $ \ Cassandra{..} -> do
       SuperColumn cn cols -> do
         let cp = T.ColumnParent (Just cf) (Just cn)
         mapM_ (insCol cp) cols
-    
+
 
 ------------------------------------------------------------------------------
 -- | Delete an entire row, specific columns or a specific sub-set of columns
 -- within a SuperColumn.
-delete 
+delete
   ::  (MonadCassandra m)
   => ColumnFamily
   -- ^ In 'ColumnFamily'
@@ -270,7 +284,7 @@ delete cf k s cl = withCassandraPool $ \ Cassandra {..} -> do
 
     -- scope column by supercol
     cpSCol sc name = T.ColumnPath (Just cf) (Just sc) (Just name)
-  
+
 
 
 ------------------------------------------------------------------------------
@@ -278,16 +292,16 @@ delete cf k s cl = withCassandraPool $ \ Cassandra {..} -> do
 -- exception types defined here.
 wrapException :: IO a -> IO a
 wrapException a = f
-    where 
+    where
       f = a
         `catch` (\ (T.NotFoundException) -> throw NotFoundException)
-        `catch` (\ (T.InvalidRequestException e) -> 
+        `catch` (\ (T.InvalidRequestException e) ->
                   throw . InvalidRequestException $ maybe "" id e)
         `catch` (\ T.UnavailableException -> throw UnavailableException)
         `catch` (\ T.TimedOutException -> throw TimedOutException)
-        `catch` (\ (T.AuthenticationException e) -> 
+        `catch` (\ (T.AuthenticationException e) ->
                   throw . AuthenticationException $ maybe "" id e)
-        `catch` (\ (T.AuthorizationException e) -> 
+        `catch` (\ (T.AuthorizationException e) ->
                   throw . AuthorizationException $ maybe "" id e)
         `catch` (\ T.SchemaDisagreementException -> throw SchemaDisagreementException)
 
