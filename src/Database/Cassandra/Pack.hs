@@ -15,6 +15,7 @@ module Database.Cassandra.Pack
     , TUUID (..)
     , TLong (..)
     , Exclusive (..)
+    , Single (..)
     ) where
 
 -------------------------------------------------------------------------------
@@ -149,6 +150,15 @@ instance CasType TUtf8 where
 
 
 -------------------------------------------------------------------------------
+-- | Use the 'Single' wrapper when querying only with the first of a
+-- two or more field CompositeType.
+instance (CasType a) => CasType (Single a) where
+    encodeCas a = runPut $ do
+        putSegment a end
+
+    decodeCas bs = flip runGet bs $ Single <$> getSegment
+
+-------------------------------------------------------------------------------
 -- | Composite types - see Cassandra or pycassa docs to understand
 instance (CasType a, CasType b) => CasType (a,b) where
     encodeCas (a, b) = runPut $ do
@@ -228,7 +238,17 @@ instance CasType a => CasType [a] where
         putSegment (last as) end
 
 
+-------------------------------------------------------------------------------
+-- | Exclusive tag for composite column. You may tag the end of a
+-- composite range with this to make the range exclusive. See pycassa
+-- documentation for more information.
 newtype Exclusive a = Exclusive a deriving (Eq,Show,Read,Ord)
+
+
+-------------------------------------------------------------------------------
+-- | Use the Single wrapper when you want to refer only to the first
+-- coolumn of a CompositeType column.
+newtype Single a = Single a deriving (Eq,Show,Read,Ord)
 
 
 -- | composite columns are a pain
