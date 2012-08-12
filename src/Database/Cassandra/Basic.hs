@@ -34,6 +34,7 @@ module Database.Cassandra.Basic
 
     -- * Filtering
     , Selector(..)
+    , range
     , Order(..)
     , reverseOrder
     , KeySelector(..)
@@ -307,10 +308,10 @@ delete cf k s cl = withCassandraPool $ \ Cassandra {..} -> do
     cpAll = T.ColumnPath (Just cf) Nothing Nothing
 
     -- just a single column
-    cpCol name = T.ColumnPath (Just cf) Nothing (Just name)
+    cpCol name = T.ColumnPath (Just cf) Nothing (Just (encodeCas name))
 
     -- scope column by supercol
-    cpSCol sc name = T.ColumnPath (Just cf) (Just sc) (Just name)
+    cpSCol sc name = T.ColumnPath (Just cf) (Just (encodeCas sc)) (Just (encodeCas name))
 
 
 

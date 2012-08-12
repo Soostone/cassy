@@ -1,10 +1,11 @@
-{-# LANGUAGE DeriveDataTypeable   #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE NamedFieldPuns       #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE PatternGuards        #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE DeriveDataTypeable        #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE NamedFieldPuns            #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE PatternGuards             #-}
+{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE TypeSynonymInstances      #-}
 
 module Database.Cassandra.Types where
 
@@ -15,8 +16,10 @@ import           Control.Monad
 import qualified Data.ByteString.Char8                     as B
 import           Data.ByteString.Lazy                      (ByteString)
 import qualified Data.ByteString.Lazy.Char8                as LB
+import           Data.Default
 import           Data.Generics
 import           Data.Int                                  (Int32, Int64)
+import           Data.List
 import           Data.Text                                 (Text)
 import qualified Data.Text                                 as T
 import qualified Data.Text.Encoding                        as T
@@ -25,6 +28,8 @@ import qualified Data.Text.Lazy.Encoding                   as LT
 import           Data.Time
 import           Data.Time.Clock.POSIX
 import qualified Database.Cassandra.Thrift.Cassandra_Types as C
+-------------------------------------------------------------------------------
+import           Database.Cassandra.Pack
 -------------------------------------------------------------------------------
 
 
@@ -50,21 +55,56 @@ mkKeyRange (KeyRange ty st end cnt) = case ty of
   InclusiveRange -> C.KeyRange (Just st) (Just end) Nothing Nothing (Just cnt)
   WrapAround -> C.KeyRange Nothing Nothing (Just $ LB.unpack st) (Just $ LB.unpack end) (Just cnt)
 
+
+-------------------------------------------------------------------------------
 -- | A column selector/filter statement for queries.
 --
 -- Remember that SuperColumns are always fully deserialized, so we don't offer
 -- a way to filter columns within a 'SuperColumn'.
+--
+-- Column names and ranges are specified by any type that can be
+-- packed into a Cassandra column using the 'CasType' typeclass.
 data Selector =
     All
   -- ^ Return everything in 'Row'
-  | ColNames [ColumnName]
+  | forall a. CasType a => ColNames [a]
   -- ^ Return specific columns or super-columns depending on the 'ColumnFamily'
-  | SupNames ColumnName [ColumnName]
+  | forall a b. (CasType a, CasType b) => SupNames a [b]
   -- ^ When deleting specific columns in a super column
-  | Range (Maybe ColumnName) (Maybe ColumnName) Order Int32
-  -- ^ Return a range of columns or super-columns
-  deriving (Show)
+  | forall a b. (CasType a, CasType b) => Range {
+      rangeStart :: Maybe a
+    , rangeEnd :: Maybe b
+    , rangeOrder :: Order
+    , rangeLimit :: Int32
+    }
+  -- ^ Return a range of columns or super-columns.
 
+-------------------------------------------------------------------------------
+-- | A default starting point for range 'Selector'. Use this so you
+-- don't run into ambiguous type variables when using Nothing.
+--
+-- > range = Range (Nothing :: Maybe ByteString) (Nothing :: Maybe ByteString) Regular 1024
+range = Range (Nothing :: Maybe ByteString) (Nothing :: Maybe ByteString) Regular 1024
+
+
+
+instance Default Selector where
+    def = All
+
+instance Show Selector where
+    show All = "All"
+    show (ColNames cns) = concat
+        ["ColNames: ", intercalate ", " $ map showCas cns]
+    show (SupNames cn cns) = concat
+        ["SuperCol: ", showCas cn, "; Cols: ", intercalate ", " (map showCas cns)]
+    show (Range a b order i) = concat
+        [ "Range from ", maybe "Nothing" showCas a, " to ", maybe "Nothing" showCas b
+        , " order ", show order, " max ", show i, " items." ]
+
+
+-------------------------------------------------------------------------------
+showCas :: CasType a => a -> String
+showCas t = LB.unpack . encodeCas $ t
 
 
 -------------------------------------------------------------------------------
@@ -74,11 +114,11 @@ mkPredicate s =
     allRange = C.SliceRange (Just "") (Just "") (Just False) (Just 5000)
   in case s of
     All -> C.SlicePredicate Nothing (Just allRange)
-    ColNames ks -> C.SlicePredicate (Just ks) Nothing
+    ColNames ks -> C.SlicePredicate (Just (map encodeCas ks)) Nothing
     Range st end ord cnt ->
       let
-        st' = st `mplus` Just ""
-        end' = end `mplus` Just ""
+        st' = fmap encodeCas st `mplus` Just ""
+        end' = fmap encodeCas end `mplus` Just ""
       in C.SlicePredicate Nothing
           (Just (C.SliceRange st' end' (Just $ renderOrd ord) (Just cnt)))
 
@@ -134,7 +174,8 @@ type Row = [Column]
 
 
 ------------------------------------------------------------------------------
--- | A short-hand for creating key-value 'Column' values
+-- | A short-hand for creating key-value 'Column' values. This is
+-- pretty low level; you probably want to use 'packCol'.
 col :: ByteString -> ByteString -> Column
 col k v = Column k v Nothing Nothing
 

@@ -232,10 +232,10 @@ instance (CasType a, CasType b, CasType c, CasType d) => CasType (a, b, c, Exclu
         <*> (Exclusive <$> getSegment)
 
 
-instance CasType a => CasType [a] where
-    encodeCas as = runPut $ do
-        mapM (flip putSegment sep) $ init as
-        putSegment (last as) end
+-- instance CasType a => CasType [a] where
+--     encodeCas as = runPut $ do
+--         mapM (flip putSegment sep) $ init as
+--         putSegment (last as) end
 
 
 -------------------------------------------------------------------------------

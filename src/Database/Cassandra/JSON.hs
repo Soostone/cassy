@@ -39,6 +39,7 @@ module Database.Cassandra.JSON
 
     -- * Cassandra Operations
     , get
+    , get_
     , getCol
     , getMulti
     , insertCol
@@ -53,11 +54,14 @@ module Database.Cassandra.JSON
     , ColumnFamily (..)
     , ConsistencyLevel (..)
     , CassandraException (..)
+
+    -- * Filtering
     , Selector (..)
-    , KeySelector (..)
-    , KeyRangeType (..)
+    , range
     , Order(..)
     , reverseOrder
+    , KeySelector (..)
+    , KeyRangeType (..)
 
     -- * Helpers
     , CKey (..)
@@ -142,10 +146,11 @@ type RowKey = Text
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify
-  :: (MonadCassandra m, ToJSON a, FromJSON a)
+  :: (MonadCassandra m, ToJSON a, FromJSON a, CasType k)
   => ColumnFamily
   -> RowKey
-  -> ColumnName
+  -> k
+  -- ^ Column name; anything in CasType
   -> ConsistencyLevel
   -- ^ Read quorum
   -> ConsistencyLevel
@@ -158,7 +163,7 @@ modify
 modify cf k cn rcl wcl f =
   let
     k' = toColKey k
-    cn' = toColKey cn
+    cn' = encodeCas cn
     execF prev = do
       (fres, b) <- f prev
       case fres of
@@ -183,10 +188,11 @@ modify cf k cn rcl wcl f =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify_
-  :: (MonadCassandra m, ToJSON a, FromJSON a)
+  :: (MonadCassandra m, ToJSON a, FromJSON a, CasType k)
   => ColumnFamily
   -> RowKey
-  -> ColumnName
+  -> k
+  -- ^ Column name; anything in CasType
   -> ConsistencyLevel
   -- ^ Read quorum
   -> ConsistencyLevel
@@ -241,6 +247,23 @@ get cf k s cl = do
 
 
 -------------------------------------------------------------------------------
+-- | A version of 'get' that discards the column names for the common
+-- scenario. Useful because you would otherwise be forced to manually
+-- supply type signatures to get rid of the 'CasType' ambiguity.
+get_
+    :: (MonadCassandra m, FromJSON a)
+    => ColumnFamily
+    -> RowKey
+    -> Selector
+    -- ^ A slice selector
+    -> ConsistencyLevel
+    -> m [a]
+get_ cf k s cl = do
+    (res :: [(LB.ByteString, a)]) <- get cf k s cl
+    return $ map snd res
+
+
+-------------------------------------------------------------------------------
 data KeySelector
     = Keys [RowKey]
     | KeyRange KeyRangeType RowKey RowKey Int32
@@ -272,14 +295,15 @@ getMulti cf ks s cl = do
 -------------------------------------------------------------------------------
 -- | Get a single column from a single row
 getCol
-    :: (MonadCassandra m, FromJSON a)
+    :: (MonadCassandra m, FromJSON a, CasType k)
     => ColumnFamily
     -> RowKey
-    -> ColumnName
+    -> k
+    -- ^ Column name; anything in 'CasType'
     -> ConsistencyLevel
     -> m (Maybe a)
 getCol cf rk ck cl = do
-    res <- CB.getCol cf (toColKey rk) (toColKey ck) cl
+    res <- CB.getCol cf (toColKey rk) (encodeCas ck) cl
     case res of
       Nothing -> return Nothing
       Just res' -> do

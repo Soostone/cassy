@@ -71,6 +71,7 @@ Library
     , cassandra-thrift >= 0.8
     , resource-pool
     , errors
+    , data-default
 
 
 test-suite test
@@ -95,6 +96,7 @@ test-suite test
     , cassandra-thrift >= 0.8
     , resource-pool
     , errors
+    , data-default
 
     , test-framework >= 0.6
     , test-framework-quickcheck2 >= 0.2.12.2
