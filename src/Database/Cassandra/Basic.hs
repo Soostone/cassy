@@ -186,7 +186,7 @@ get
   -> Selector
   -- ^ Slice columns with selector
   -> ConsistencyLevel
-  -> m Row
+  -> m [Column]
 get cf k s cl = withCassandraPool $ \ Cassandra{..} -> do
   res <- wrapException $ C.get_slice (cProto, cProto) k cp (mkPredicate s) cl
   throwing . return $ mapM castColumn res
