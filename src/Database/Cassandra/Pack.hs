@@ -28,14 +28,11 @@ import           Data.ByteString.Lazy.Char8 (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as LB
 import           Data.Char
 import           Data.Int
-import           Data.List
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as T
 import qualified Data.Text.Lazy             as LT
 import qualified Data.Text.Lazy.Encoding    as LT
-
-import           Data.Time
 -------------------------------------------------------------------------------
 
 
@@ -134,6 +131,9 @@ instance CasType TInt where
     encodeCas = runPut . putWord64be . fromIntegral . getInt
     decodeCas = TInt . fromIntegral . runGet getWord64be
 
+instance CasType Int where
+    encodeCas = encodeCas . TInt . fromIntegral
+    decodeCas = fromIntegral . getInt . decodeCas
 
 -------------------------------------------------------------------------------
 -- | Pack as an 8 byte unsigned number; negative signs are lost.
@@ -261,12 +261,14 @@ newtype Single a = Single a deriving (Eq,Show,Read,Ord)
 
 
 -------------------------------------------------------------------------------
+putBytes :: B.ByteString -> Put
 putBytes b = do
     putLen b
     putByteString b
 
 
 -------------------------------------------------------------------------------
+getBytes' :: Get B.ByteString
 getBytes' = getLen >>= getBytes
 
 
@@ -282,7 +284,12 @@ putLen b = putWord16be . fromIntegral $ (B.length b)
 
 
 -------------------------------------------------------------------------------
+toStrict :: ByteString -> B.ByteString
 toStrict = B.concat . LB.toChunks
+
+
+-------------------------------------------------------------------------------
+fromStrict :: B.ByteString -> ByteString
 fromStrict = LB.fromChunks . return
 
 
@@ -295,16 +302,20 @@ getSegment = do
 
 
 -------------------------------------------------------------------------------
+putSegment :: CasType a => a -> PutM b -> PutM b
 putSegment a f = do
     putBytes . toStrict $ encodeCas a
     f
 
 -- | When end point is exclusive
+exc :: Put
 exc = putWord8 . fromIntegral $ ord '\xff'
 
 -- | Regular (inclusive) end point
+end :: Put
 end = putWord8 . fromIntegral $ ord '\x01'
 
 -- | Separator between composite parts
+sep :: Put
 sep = putWord8 . fromIntegral $ ord '\x00'
 

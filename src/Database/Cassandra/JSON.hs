@@ -26,15 +26,15 @@ module Database.Cassandra.JSON
 
     -- * Connection
       CPool
-    , Server (..)
+    , Server
     , defServer
     , defServers
-    , KeySpace (..)
+    , KeySpace
     , createCassandraPool
 
     -- * MonadCassandra Typeclass
     , MonadCassandra (..)
-    , Cas (..)
+    , Cas
     , runCas
 
     -- * Cassandra Operations
@@ -51,7 +51,7 @@ module Database.Cassandra.JSON
     , RowKey
     , ColumnName
     , ModifyOperation (..)
-    , ColumnFamily (..)
+    , ColumnFamily
     , ConsistencyLevel (..)
     , CassandraException (..)
 
@@ -89,22 +89,13 @@ import qualified Data.Attoparsec            as Atto (IResult(..), parse)
 import qualified Data.ByteString.Char8      as B
 import           Data.ByteString.Lazy.Char8 (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as LB
-import           Data.Int                   (Int32, Int64)
+import           Data.Int                   (Int32)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
-import qualified Data.Text.Lazy             as LT
-import qualified Data.Text.Lazy.Encoding    as LT
-import           Network
 import           Prelude                    hiding (catch)
 -------------------------------------------------------------------------------
 import           Database.Cassandra.Basic   hiding (KeySelector(..), delete, get, getCol, getMulti)
 import qualified Database.Cassandra.Basic   as CB
-import           Database.Cassandra.Pack
-import           Database.Cassandra.Pool
-import           Database.Cassandra.Types   hiding (ColumnName, KeySelector(..))
 -------------------------------------------------------------------------------
 
 
@@ -130,7 +121,7 @@ data ModifyOperation a =
 
 
 -------------------------------------------------------------------------------
-type RowKey = Text
+type RowKey = ByteString
 
 
 ------------------------------------------------------------------------------
@@ -270,6 +261,7 @@ data KeySelector
 
 
 -------------------------------------------------------------------------------
+ksToBasicKS :: KeySelector -> CB.KeySelector
 ksToBasicKS (Keys k) = CB.Keys $ map toColKey k
 ksToBasicKS (KeyRange ty fr to i) = CB.KeyRange ty (toColKey fr) (toColKey to) i
 
