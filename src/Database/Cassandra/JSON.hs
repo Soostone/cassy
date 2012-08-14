@@ -153,22 +153,20 @@ modify
   -- ^ Return the decided 'ModifyOperation' and its execution outcome
 modify cf k cn rcl wcl f =
   let
-    k' = toColKey k
+    k'  = toColKey k
     cn' = encodeCas cn
     execF prev = do
       (fres, b) <- f prev
       case fres of
-        (Update a) ->
-          insert cf k' wcl [col cn' (marshallJSON' a)]
-        (Delete) ->
-          CB.delete cf k' (ColNames [cn']) wcl
-        (DoNothing) -> return ()
+        Update a  -> insert cf k' wcl [col cn' (marshallJSON' a)]
+        Delete    -> CB.delete cf k' (ColNames [cn']) wcl
+        DoNothing -> return ()
       return b
   in do
     res <- CB.getCol cf k' cn' rcl
     case res of
-      Nothing -> execF Nothing
-      Just Column{..} -> execF (unMarshallJSON' colVal)
+      Nothing              -> execF Nothing
+      Just Column{..}      -> execF (unMarshallJSON' colVal)
       Just SuperColumn{..} -> throw $
         OperationNotSupported "modify not implemented for SuperColumn"
 
