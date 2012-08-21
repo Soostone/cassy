@@ -10,7 +10,6 @@
 module Database.Cassandra.Types where
 
 -------------------------------------------------------------------------------
-import           Control.Error
 import           Control.Exception
 import           Control.Monad
 import qualified Data.ByteString.Char8                     as B
