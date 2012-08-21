@@ -80,6 +80,35 @@ Example usage:
 
 ## Release Notes
 
+### Version 0.4
+
+This version packs a fairly large changeset. It will almost definitely
+break your code, although the fix/adjustment is likely to be minor.
+
+* Vastly enhanced the Database.Cassandra.Pack module to represent
+  types that Cassandra can sort and validate.
+* Added CasType typeclass that offers `encodeCas` and `decodeCas`
+  methods that handle conversions to/from the binary ByteString
+  representation.
+* Composite columns are now supported through tuples. Just pick two or
+  more CasType instances and put them in a tuple to automatically
+  trigger composite column conversion. Keep in mind that your
+  ColumnFamily schema must be configured right or else you'll get
+  runtime exceptions.
+* Added a bunch of newtype wrappers to directly map to types Cassandra
+  knows. These include `TAscii`, `TBytes`, `TInt`, `TUtf8` and some
+  others.
+* Changed several methods in Basic and JSON modules to expect CasType
+  column key values instead of concrete ByteString.
+* Added the useful `packCol` and `unpackCol` functions to smoothly
+  handle column key type conversions when working with the Basic
+  module.
+* Made the Cas monad a simple type synonym for ReaderT CPool.
+* Added the `get_` metho to `JSON` to make it easier to discard key
+  names and just get the column contents.
+* Numerous fixes and minor tweaks.
+
+
 ### Version 0.3
 
 * Added MonadCassandra typeclass, which is now used by *all*

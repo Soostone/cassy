@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.4
+Version:             0.4.0.1
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -15,6 +15,9 @@ description:
   Certain parts of the API was inspired by pycassa (Python client) and
   hscassandra (on Hackage).
   .
+  Please see the Github repository for more detailed documentation,
+  release notes and examples.
+  .
   A brief explanation of modules:
   . 
   * /Database.Cassandra.Basic/: Contains a low level, simple
@@ -29,6 +32,9 @@ description:
   * /Database.Cassandra.Pool/: Handles a /pool/ of connections to
     multiple servers in a cluster, splitting the load among them.
   .
+  * /Database.Cassandra.Pack/: Handles column types that Cassandra
+    recognizes and adds support for Composite Columns.
+  .
   * /Database.Cassandra.Types/: A common set of types used everywhere.
   .
   Potential TODOs include:
@@ -36,12 +42,10 @@ description:
   * Support for counters and batch mutators
   .
   * Support for database admin operations
-  .
-  * Support for composite column types  
 
 -- Extra-source-files:  
 
-Cabal-version:       >=1.2
+Cabal-version:       >=1.8
 
 
 
