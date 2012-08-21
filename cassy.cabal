@@ -6,7 +6,7 @@ License-file:        LICENSE
 Author:              Ozgun Ataman
 Maintainer:          ozataman@gmail.com
 Homepage:            http://github.com/ozataman/cassy
-Category:            Data
+Category:            Database
 Build-type:          Simple
 description:
   The objective is to completely isolate away the thrift layer, providing
