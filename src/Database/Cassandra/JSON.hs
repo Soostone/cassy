@@ -43,6 +43,7 @@ module Database.Cassandra.JSON
     , getCol
     , getMulti
     , insertCol
+    , insertColTTL
     , modify
     , modify_
     , delete
@@ -85,7 +86,7 @@ import           Control.Exception
 import           Control.Monad
 import           Data.Aeson                 as A
 import           Data.Aeson.Parser          (value)
-import qualified Data.Attoparsec            as Atto (IResult(..), parse)
+import qualified Data.Attoparsec            as Atto (IResult (..), parse)
 import qualified Data.ByteString.Char8      as B
 import           Data.ByteString.Lazy.Char8 (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as LB
@@ -94,7 +95,8 @@ import           Data.Map                   (Map)
 import qualified Data.Map                   as M
 import           Prelude                    hiding (catch)
 -------------------------------------------------------------------------------
-import           Database.Cassandra.Basic   hiding (KeySelector(..), delete, get, getCol, getMulti)
+import           Database.Cassandra.Basic   hiding (KeySelector (..), delete,
+                                             get, getCol, getMulti)
 import qualified Database.Cassandra.Basic   as CB
 -------------------------------------------------------------------------------
 
@@ -153,17 +155,16 @@ modify
   -- ^ Return the decided 'ModifyOperation' and its execution outcome
 modify cf k cn rcl wcl f =
   let
-    k'  = toColKey k
     cn' = encodeCas cn
     execF prev = do
       (fres, b) <- f prev
       case fres of
-        Update a  -> insert cf k' wcl [col cn' (marshallJSON' a)]
-        Delete    -> CB.delete cf k' (ColNames [cn']) wcl
+        Update a  -> insert cf k wcl [col cn' (marshallJSON' a)]
+        Delete    -> CB.delete cf k (ColNames [cn']) wcl
         DoNothing -> return ()
       return b
   in do
-    res <- CB.getCol cf k' cn' rcl
+    res <- CB.getCol cf k cn' rcl
     case res of
       Nothing              -> execF Nothing
       Just Column{..}      -> execF (unMarshallJSON' colVal)
@@ -212,7 +213,27 @@ insertCol
     -> a -- ^ Content
     -> m ()
 insertCol cf rk cn cl a =
-    insert cf (toColKey rk) cl [packCol (cn, marshallJSON' a)]
+    insert cf rk cl [packCol (cn, marshallJSON' a)]
+
+
+
+-------------------------------------------------------------------------------
+-- Simple insertion function making use of typeclasses
+insertColTTL
+    :: (MonadCassandra m, ToJSON a, CasType k)
+    => ColumnFamily
+    -> RowKey
+    -> k
+    -- ^ Column name. See 'CasType' for what you can use here.
+    -> ConsistencyLevel
+    -> a
+    -- ^ Content
+    -> Int32
+    -- ^ TTL for this column
+    -> m ()
+insertColTTL cf rk cn cl a ttl = insert cf rk cl [column]
+    where
+      column = Column (packKey cn) (marshallJSON' a) Nothing (Just ttl)
 
 
 ------------------------------------------------------------------------------
@@ -231,7 +252,7 @@ get
     -> m [(k, a)]
     -- ^ List of key-value pairs. See 'CasType' for what key types you can use.
 get cf k s cl = do
-  res <- CB.get cf (toColKey k) s cl
+  res <- CB.get cf k s cl
   return $ map col2val res
 
 
@@ -279,7 +300,7 @@ getMulti cf ks s cl = do
   res <- CB.getMulti cf (ksToBasicKS ks) s cl
   return . M.fromList . map conv . M.toList $ res
   where
-    conv (k, row) = (fromColKey' k, map col2val row)
+    conv (k, row) = (k, map col2val row)
 
 
 -------------------------------------------------------------------------------
@@ -293,7 +314,7 @@ getCol
     -> ConsistencyLevel
     -> m (Maybe a)
 getCol cf rk ck cl = do
-    res <- CB.getCol cf (toColKey rk) (encodeCas ck) cl
+    res <- CB.getCol cf rk (encodeCas ck) cl
     case res of
       Nothing -> return Nothing
       Just res' -> do
@@ -315,7 +336,7 @@ delete
   -- ^ Columns to be deleted
   -> ConsistencyLevel
   -> m ()
-delete cf k s cl = CB.delete cf (toColKey k) s cl
+delete cf k s cl = CB.delete cf k s cl
 
 
 ------------------------------------------------------------------------------

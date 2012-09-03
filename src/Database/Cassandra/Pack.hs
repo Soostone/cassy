@@ -131,9 +131,12 @@ instance CasType TInt where
     encodeCas = runPut . putWord64be . fromIntegral . getInt
     decodeCas = TInt . fromIntegral . runGet getWord64be
 
+
+-------------------------------------------------------------------------------
 instance CasType Int where
     encodeCas = encodeCas . TInt . fromIntegral
     decodeCas = fromIntegral . getInt . decodeCas
+
 
 -------------------------------------------------------------------------------
 -- | Pack as an 8 byte unsigned number; negative signs are lost.
