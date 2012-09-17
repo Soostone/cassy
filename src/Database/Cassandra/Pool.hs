@@ -187,11 +187,11 @@ next Ring{..}
 ------------------------------------------------------------------------------
 removeServer :: Ord a => a -> Ring a -> Ring a
 removeServer s r@Ring{..}
-  | s `S.member` allItems = Ring (S.delete s allItems) current' used' upcoming'
+  | s `S.member` allItems = Ring all' cur' [] up'
   | otherwise             = r
   where
-    used' = filter (/=s) used
-    (current':upcoming') = filter (/=s) (current:upcoming)
+    all' = S.delete s allItems
+    cur' : up' = S.toList all'
 
 
 ------------------------------------------------------------------------------
