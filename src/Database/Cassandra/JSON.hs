@@ -356,6 +356,7 @@ marshallJSON = B.concat . LB.toChunks . A.encode
 unMarshallJSON' :: FromJSON a => ByteString -> Maybe a
 unMarshallJSON' = unMarshallJSON . B.concat . LB.toChunks
 
+
 ------------------------------------------------------------------------------
 -- | Decode JSON
 unMarshallJSON :: FromJSON a => B.ByteString -> Maybe a

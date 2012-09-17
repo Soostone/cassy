@@ -89,7 +89,8 @@ import           Data.Map                                   (Map)
 import qualified Data.Map                                   as M
 import           Data.Maybe                                 (mapMaybe)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import           Database.Cassandra.Thrift.Cassandra_Types  (ConsistencyLevel(..))
+import           Database.Cassandra.Thrift.Cassandra_Types 
+                                                             (ConsistencyLevel (..))
 import qualified Database.Cassandra.Thrift.Cassandra_Types  as T
 import           Prelude                                    hiding (catch)
 -------------------------------------------------------------------------------
@@ -302,7 +303,7 @@ delete cf k s cl = withCassandraPool $ \ Cassandra {..} -> do
       C.remove (cProto, cProto) k (cpCol c) now cl
     SupNames sn cs -> forM_ cs $ \c -> do
       C.remove (cProto, cProto) k (cpSCol sn c) now cl
-    Range _ _ _ _ -> error "delete: Range delete not implemented"
+    Range{} -> error "delete: Range delete not implemented"
   where
     -- wipe out the entire row
     cpAll = T.ColumnPath (Just cf) Nothing Nothing

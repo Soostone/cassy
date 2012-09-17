@@ -161,6 +161,7 @@ instance (CasType a) => CasType (Single a) where
 
     decodeCas bs = flip runGet bs $ Single <$> getSegment
 
+
 -------------------------------------------------------------------------------
 -- | Composite types - see Cassandra or pycassa docs to understand
 instance (CasType a, CasType b) => CasType (a,b) where
@@ -197,6 +198,13 @@ instance (CasType a, CasType b, CasType c, CasType d) => CasType (a,b,c,d) where
         <*> getSegment
         <*> getSegment
         <*> getSegment
+
+
+instance CasType a => CasType (Exclusive (Single a)) where
+    encodeCas (Exclusive a) = runPut $ do
+        putSegment a exc
+
+    decodeCas = Exclusive . decodeCas
 
 
 instance (CasType a, CasType b) => CasType (a, Exclusive b) where
