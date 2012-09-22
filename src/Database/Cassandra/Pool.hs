@@ -95,29 +95,35 @@ createCassandraPool
   -> IO CPool
 createCassandraPool servers numStripes perStripe maxIdle ks = do
     sring <- newTVarIO $ mkRing servers
-    pool <- createPool (cr sring) dest numStripes maxIdle perStripe
+    pool <- createPool (cr 4 sring) dest numStripes maxIdle perStripe
     -- forkIO (serverDiscoveryThread sring ks pool)
     return pool
   where
-    cr :: ServerRing -> IO Cassandra
-    cr sring = do
+    cr :: Int -> ServerRing -> IO Cassandra
+    cr n sring = do
       s@(host, p) <- atomically $ do
         ring@Ring{..} <- readTVar sring
         writeTVar sring (next ring)
         return current
 
-      handle (handler sring s) $ do
+      handle (handler n sring s) $ do
           (h,ft,proto) <- openThrift host p
           C.set_keyspace (proto, proto) ks
           return $ Cassandra h ft proto
 
-    handler :: ServerRing -> Server -> SomeException -> IO Cassandra
-    handler sring server e = do
+    handler :: Int -> ServerRing -> Server -> SomeException -> IO Cassandra
+    handler 0 _ _ e = error $ "Can't connect to cassandra after several tries: " ++ show e
+    handler n sring server e = do
+
+      -- we need a temporary removal system for servers; something
+      -- with a TTL just removing them from ring is dangerous, what if
+      -- the network is partitioned for a little while? 
+      
       -- modifyServers sring (removeServer server)
 
       -- wait 100ms to avoid crazy loops
       threadDelay 100000
-      cr sring
+      cr (n-1) sring
 
     dest h = hClose $ cHandle h
 
@@ -174,7 +180,7 @@ data Ring a = Ring {
 
 ------------------------------------------------------------------------------
 mkRing [] = error "Can't make a ring from empty list"
-mkRing (a:as) = Ring S.empty a [] as
+mkRing all@(a:as) = Ring (S.fromList all) a [] as
 
 
 ------------------------------------------------------------------------------
