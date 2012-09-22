@@ -96,7 +96,7 @@ createCassandraPool
 createCassandraPool servers numStripes perStripe maxIdle ks = do
     sring <- newTVarIO $ mkRing servers
     pool <- createPool (cr sring) dest numStripes maxIdle perStripe
-    forkIO (serverDiscoveryThread sring ks pool)
+    -- forkIO (serverDiscoveryThread sring ks pool)
     return pool
   where
     cr :: ServerRing -> IO Cassandra
@@ -113,7 +113,10 @@ createCassandraPool servers numStripes perStripe maxIdle ks = do
 
     handler :: ServerRing -> Server -> SomeException -> IO Cassandra
     handler sring server e = do
-      modifyServers sring (removeServer server)
+      -- modifyServers sring (removeServer server)
+
+      -- wait 100ms to avoid crazy loops
+      threadDelay 100000
       cr sring
 
     dest h = hClose $ cHandle h
