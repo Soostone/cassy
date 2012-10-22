@@ -16,6 +16,7 @@ module Database.Cassandra.Pack
     , TLong (..)
     , Exclusive (..)
     , Single (..)
+    , SliceStart (..)
     ) where
 
 -------------------------------------------------------------------------------
@@ -156,8 +157,7 @@ instance CasType TUtf8 where
 -- | Use the 'Single' wrapper when querying only with the first of a
 -- two or more field CompositeType.
 instance (CasType a) => CasType (Single a) where
-    encodeCas a = runPut $ do
-        putSegment a end
+    encodeCas (Single a) = runPut $ putSegment a end
 
     decodeCas bs = flip runGet bs $ Single <$> getSegment
 
@@ -200,8 +200,72 @@ instance (CasType a, CasType b, CasType c, CasType d) => CasType (a,b,c,d) where
         <*> getSegment
 
 
+                              ------------------
+                              -- Slice Starts --
+                              ------------------
+
+
+
+instance (CasType a) => CasType (SliceStart (Single a)) where
+    encodeCas (SliceStart (Single a)) = runPut $ do
+        putSegment a exc
+    decodeCas bs = flip runGet bs $ (SliceStart . Single) <$> getSegment
+
+
+-------------------------------------------------------------------------------
+-- | Composite types - see Cassandra or pycassa docs to understand
+instance (CasType a, CasType b) => CasType (SliceStart (a,b)) where
+    encodeCas (SliceStart (a, b)) = runPut $ do
+        putSegment a sep
+        putSegment b exc
+
+    decodeCas bs = SliceStart . flip runGet bs $ (,)
+        <$> getSegment
+        <*> getSegment
+
+
+instance (CasType a, CasType b, CasType c) => CasType (SliceStart (a,b,c)) where
+    encodeCas (SliceStart (a, b, c)) = runPut $ do
+        putSegment a sep
+        putSegment b sep
+        putSegment c exc
+
+    decodeCas bs = SliceStart . flip runGet bs $ (,,)
+        <$> getSegment
+        <*> getSegment
+        <*> getSegment
+
+
+instance (CasType a, CasType b, CasType c, CasType d) =>
+    CasType (SliceStart (a,b,c,d)) where
+    encodeCas (SliceStart (a, b, c, d)) = runPut $ do
+        putSegment a sep
+        putSegment b sep
+        putSegment c sep
+        putSegment d exc
+
+    decodeCas bs = SliceStart . flip runGet bs $ (,,,)
+        <$> getSegment
+        <*> getSegment
+        <*> getSegment
+        <*> getSegment
+
+
+
+
+
+
+
+
+
+
+                            -----------------------
+                            -- Exclusive Columns --
+                            -----------------------
+
+
 instance CasType a => CasType (Exclusive (Single a)) where
-    encodeCas (Exclusive a) = runPut $ do
+    encodeCas (Exclusive (Single a)) = runPut $ do
         putSegment a exc
 
     decodeCas = Exclusive . decodeCas
@@ -260,6 +324,12 @@ newtype Exclusive a = Exclusive a deriving (Eq,Show,Read,Ord)
 -- | Use the Single wrapper when you want to refer only to the first
 -- coolumn of a CompositeType column.
 newtype Single a = Single a deriving (Eq,Show,Read,Ord)
+
+
+-------------------------------------------------------------------------------
+-- | Wrap your composite columns in this type when you're starting an
+-- inclusive column slice.
+newtype SliceStart a = SliceStart a deriving (Eq,Show,Read,Ord)
 
 
 -- | composite columns are a pain

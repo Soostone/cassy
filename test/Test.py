@@ -21,5 +21,6 @@ cf = ColumnFamily(pool, 'testing')
 # cf.insert("row2", {(125, 'oklahoma'): 'asdf'})
 
 print cf.get('row1')
+print cf.get('row2')
 # should see: OrderedDict([((125, 'oklahoma'), 'asdf')])
 

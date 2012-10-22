@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
 
@@ -15,10 +16,12 @@ import           Data.DeriveTH
 import qualified Data.Map                                   as M
 import qualified Data.Text                                  as T
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import           Database.Cassandra.Thrift.Cassandra_Types  (ConsistencyLevel(..))
+import           Database.Cassandra.Thrift.Cassandra_Types 
+                                                             (ConsistencyLevel (..))
 import           Database.Cassandra.Thrift.Cassandra_Types  as T
 import           System.IO.Unsafe
-import           Test.Framework                             (defaultMain, testGroup)
+import           Test.Framework                             (defaultMain,
+                                                             testGroup)
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2       (testProperty)
 import           Test.HUnit
@@ -47,7 +50,8 @@ packTests pool =
     , testProperty "cas type marshalling ascii" prop_casTypeInt32
     , testProperty "cas type marshalling composite" prop_casTypeComp
     , testCase "cas live test - composite get/set" test_composite_col
-    , testProperty "cas live test read/write QC" (prop_composite_col_readWrite pool)
+    , testCase "cas live - set comp + single col slice" test_composite_slice
+    -- , testProperty "cas live test read/write QC" (prop_composite_col_readWrite pool)
     ]
 
 
@@ -123,6 +127,26 @@ test_composite_col = do
     where
       key = (TLong 125, TBytes "oklahoma")
       content = (key, "asdf")
+
+
+-------------------------------------------------------------------------------
+test_composite_slice = do
+    pool <- mkTestConn
+    xs <- runCas pool $ do
+        insert "testing" "row2" ONE [packCol (key, content)]
+        get "testing" "row2" slice ONE
+    let (res :: [((TLong, TBytes), LB.ByteString)]) = map unpackCol xs
+
+    assertEqual "composite single col slice" content (snd . head $ res)
+    where
+      key = (TLong 125, TBytes "oklahoma")
+      content = "asdf"
+      slice = Range (Just (Exclusive (Single (TLong 125))))
+                    (Just (Single (TLong 125)))
+                    -- (Just (Single (TLong 127)))
+                    Regular
+                    100
+      -- slice = Range (Just (TLong 125, TBytes "")) (Just (TLong 125, TBytes "zzzzz")) Regular 100
 
 
 -------------------------------------------------------------------------------
