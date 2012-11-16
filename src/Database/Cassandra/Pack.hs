@@ -1,6 +1,7 @@
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverlappingInstances #-}
-{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverlappingInstances       #-}
+{-# LANGUAGE RankNTypes                 #-}
 
 {-| A Collection of utilities for binary packing values into Bytestring |-}
 
@@ -43,9 +44,9 @@ newtype TAscii = TAscii { getAscii :: ByteString } deriving (Eq,Show,Read,Ord)
 newtype TBytes = TBytes { getTBytes :: ByteString } deriving (Eq,Show,Read,Ord)
 newtype TCounter = TCounter { getCounter :: ByteString } deriving (Eq,Show,Read,Ord)
 newtype TInt32 = TInt32 { getInt32 :: Int32 } deriving (Eq,Show,Read,Ord)
-newtype TInt = TInt { getInt :: Integer } deriving (Eq,Show,Read,Ord)
+newtype TInt = TInt { getInt :: Integer } deriving (Eq,Show,Read,Ord,Enum,Real,Integral,Num)
 newtype TUUID = TUUID { getUUID :: ByteString } deriving (Eq,Show,Read,Ord)
-newtype TLong = TLong { getLong :: Integer } deriving (Eq,Show,Read,Ord)
+newtype TLong = TLong { getLong :: Integer } deriving (Eq,Show,Read,Ord,Enum,Real,Integral,Num)
 newtype TUtf8 = TUtf8 { getUtf8 :: Text } deriving (Eq,Show,Read,Ord)
 
 
