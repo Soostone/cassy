@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.4.1.1
+Version:             0.4.2.0
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -75,6 +75,7 @@ Library
     , cassandra-thrift >= 0.8
     , resource-pool
     , data-default
+    , async
 
 
 test-suite test

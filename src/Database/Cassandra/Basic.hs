@@ -24,6 +24,7 @@ module Database.Cassandra.Basic
     , MonadCassandra (..)
     , Cas (..)
     , runCas
+    , mapCassandra
 
     -- * Cassandra Operations
     , getCol
@@ -81,6 +82,7 @@ module Database.Cassandra.Basic
 
 -------------------------------------------------------------------------------
 import           Control.Applicative
+import           Control.Concurrent.Async
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Reader
@@ -88,6 +90,7 @@ import           Data.ByteString.Lazy                       (ByteString)
 import           Data.Map                                   (Map)
 import qualified Data.Map                                   as M
 import           Data.Maybe                                 (mapMaybe)
+import           Data.Traversable                           (Traversable)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
 import           Database.Cassandra.Thrift.Cassandra_Types 
                                                              (ConsistencyLevel (..))
@@ -130,6 +133,15 @@ import           Database.Cassandra.Types
 -- 'CassandraException's at any point in time.
 class (MonadIO m) => MonadCassandra m where
     getCassandraPool :: m CPool
+
+
+-------------------------------------------------------------------------------
+-- | Run a list of cassandra computations in parallel using the async library
+mapCassandra :: (Traversable t, MonadCassandra m) => t (Cas b) -> m (t b)
+mapCassandra ms = do
+    cp <- getCassandraPool
+    let f m = runCas cp m
+    liftIO $ mapConcurrently f ms
 
 
 -------------------------------------------------------------------------------
