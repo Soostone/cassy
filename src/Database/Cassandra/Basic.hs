@@ -266,7 +266,7 @@ insert
 insert cf k cl row = withCassandraPool $ \ Cassandra{..} -> do
   let insCol cp c = do
         c' <- mkThriftCol c
-        C.insert (cProto, cProto) k cp c' cl
+        wrapException $ C.insert (cProto, cProto) k cp c' cl
   forM_ row $ \ c -> do
     case c of
       Column{} -> do
