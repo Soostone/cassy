@@ -36,6 +36,7 @@ module Database.Cassandra.Basic
     -- * Filtering
     , Selector(..)
     , range
+    , boundless
     , Order(..)
     , reverseOrder
     , KeySelector(..)

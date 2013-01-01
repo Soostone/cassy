@@ -60,6 +60,7 @@ module Database.Cassandra.JSON
     -- * Filtering
     , Selector (..)
     , range
+    , boundless
     , Order(..)
     , reverseOrder
     , KeySelector (..)

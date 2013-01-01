@@ -72,7 +72,7 @@ data Selector =
   -- ^ When deleting specific columns in a super column
   | forall a b. (CasType a, CasType b) => Range {
       rangeStart :: Maybe a
-    , rangeEnd :: Maybe b
+    , rangeEnd   :: Maybe b
     , rangeOrder :: Order
     , rangeLimit :: Int32
     }
@@ -84,6 +84,10 @@ data Selector =
 --
 -- > range = Range (Nothing :: Maybe ByteString) (Nothing :: Maybe ByteString) Regular 1024
 range = Range (Nothing :: Maybe ByteString) (Nothing :: Maybe ByteString) Regular 1024
+
+
+boundless :: Maybe ByteString
+boundless = Nothing
 
 
 
@@ -159,7 +163,7 @@ data Column =
   | Column {
       colKey :: ColumnName
     , colVal :: Value
-    , colTS :: Maybe Int64
+    , colTS  :: Maybe Int64
     -- ^ Last update timestamp; will be overridden during write/update ops
     , colTTL :: Maybe Int32
     -- ^ A TTL after which Cassandra will erase the column
