@@ -24,6 +24,7 @@ module Database.Cassandra.Basic
     , MonadCassandra (..)
     , Cas (..)
     , runCas
+    , transCas
     , mapCassandra
 
     -- * Cassandra Operations
@@ -162,6 +163,19 @@ type Cas a = ReaderT CPool IO a
 -- a 'CPool' to execute.
 runCas :: CPool -> Cas a -> IO a
 runCas = flip runReaderT
+
+
+-- | Unwrap a Cassandra action and return an IO continuation that can
+-- then be run in a pure IO context.
+--
+-- This is useful when you design all your functions in a generic form
+-- with 'MonadCassandra' m constraints and then one day need to feed
+-- your function to a utility that can only run in an IO context. This
+-- function is then your friendly utility for extracting an IO action.
+transCas :: MonadCassandra m => Cas a -> m (IO a)
+transCas m = do
+    cp <- getCassandraPool
+    return $ runCas cp m
 
 
 -------------------------------------------------------------------------------

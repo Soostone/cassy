@@ -36,6 +36,7 @@ module Database.Cassandra.JSON
     , MonadCassandra (..)
     , Cas
     , runCas
+    , transCas
     , mapCassandra
 
     -- * Cassandra Operations
