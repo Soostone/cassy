@@ -15,6 +15,10 @@ module Database.Cassandra.Pack
     , TUtf8 (..)
     , TUUID (..)
     , TLong (..)
+    , TTimeStamp (..)
+    , toTimeStamp
+    , fromTimeStamp
+
     , Exclusive (..)
     , Single (..)
     , SliceStart (..)
@@ -35,6 +39,8 @@ import qualified Data.Text                  as T
 import qualified Data.Text.Encoding         as T
 import qualified Data.Text.Lazy             as LT
 import qualified Data.Text.Lazy.Encoding    as LT
+import           Data.Time
+import           Data.Time.Clock.POSIX
 -------------------------------------------------------------------------------
 
 
@@ -48,6 +54,21 @@ newtype TInt = TInt { getInt :: Integer } deriving (Eq,Show,Read,Ord,Enum,Real,I
 newtype TUUID = TUUID { getUUID :: ByteString } deriving (Eq,Show,Read,Ord)
 newtype TLong = TLong { getLong :: Integer } deriving (Eq,Show,Read,Ord,Enum,Real,Integral,Num)
 newtype TUtf8 = TUtf8 { getUtf8 :: Text } deriving (Eq,Show,Read,Ord)
+
+
+-- | Timestamp that stores micro-seconds since epoch as 'TLong' underneath.
+newtype TTimeStamp = TTimeStamp { getTimeStamp :: TLong }
+    deriving (Eq,Show,Read,Ord,Enum,Num,Real,Integral,CasType)
+
+
+-- | Convert commonly used 'UTCTime' to 'TTimeStamp'
+toTimeStamp :: UTCTime -> TTimeStamp
+toTimeStamp utc = fromIntegral . floor . (* 1e6) $ utcTimeToPOSIXSeconds utc
+
+
+fromTimeStamp :: TTimeStamp -> UTCTime
+fromTimeStamp (TTimeStamp (TLong i)) =
+    posixSecondsToUTCTime $ realToFrac $ fromIntegral i / (1e6)
 
 
 -------------------------------------------------------------------------------
