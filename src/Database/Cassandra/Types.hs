@@ -32,6 +32,15 @@ import           Database.Cassandra.Pack
 -------------------------------------------------------------------------------
 
 
+------------------------------------------------------------------------------
+-- | Possible outcomes of a modify operation
+data ModifyOperation a =
+    Update a
+  | Delete
+  | DoNothing
+  deriving (Eq,Show,Ord,Read)
+
+
 -- | A 'Key' range selector to use with 'getMulti'.
 data KeySelector =
     Keys [Key]
@@ -114,7 +123,7 @@ showCas t = LB.unpack . encodeCas $ t
 mkPredicate :: Selector -> C.SlicePredicate
 mkPredicate s =
   let
-    allRange = C.SliceRange (Just "") (Just "") (Just False) (Just 5000)
+    allRange = C.SliceRange (Just "") (Just "") (Just False) (Just 50000)
   in case s of
     All -> C.SlicePredicate Nothing (Just allRange)
     ColNames ks -> C.SlicePredicate (Just (map encodeCas ks)) Nothing
@@ -147,6 +156,7 @@ type ColumnFamily = String
 
 
 type Key = ByteString
+type RowKey = Key
 
 
 type ColumnName = ByteString

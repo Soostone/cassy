@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.4.2.0
+Version:             0.5.0.0
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -53,6 +53,7 @@ Library
   hs-source-dirs: src
   Exposed-modules:
     Database.Cassandra.Basic
+    Database.Cassandra.Marshall
     Database.Cassandra.JSON
     Database.Cassandra.Pool
     Database.Cassandra.Types
@@ -61,7 +62,7 @@ Library
   Build-depends:
       base >= 4 && < 5
     , bytestring
-    , binary
+    , binary >= 0.6.4
     , containers
     , network
     , time
@@ -76,6 +77,7 @@ Library
     , resource-pool
     , data-default
     , async
+    , errors
 
 
 test-suite test
@@ -86,7 +88,7 @@ test-suite test
   Build-depends:
       base >= 4 && < 5
     , bytestring
-    , binary
+    , binary >= 0.6.4
     , containers
     , network
     , time
@@ -100,6 +102,7 @@ test-suite test
     , cassandra-thrift >= 0.8
     , resource-pool
     , data-default
+    , errors
 
     , test-framework >= 0.6
     , test-framework-quickcheck2 >= 0.2.12.2
