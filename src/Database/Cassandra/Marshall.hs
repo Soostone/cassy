@@ -50,6 +50,8 @@ module Database.Cassandra.Marshall
     , casShow
     , casJSON
     , casBinary
+    , casSerialize
+    , casSafeCopy
 
     -- * Cassandra Operations
     , get
@@ -82,17 +84,8 @@ module Database.Cassandra.Marshall
     , CKey (..)
     , fromColKey'
 
-    -- * Working with column types
-    , CasType (..)
-    , TAscii (..)
-    , TBytes (..)
-    , TCounter (..)
-    , TInt (..)
-    , TInt32 (..)
-    , TUtf8 (..)
-    , TUUID (..)
-    , TLong (..)
-    , Exclusive (..)
+    -- * Cassandra Column Key Types
+    , module Database.Cassandra.Pack
     ) where
 
 -------------------------------------------------------------------------------
@@ -109,11 +102,14 @@ import qualified Data.ByteString.Lazy.Char8 as LB
 import           Data.Int                   (Int32)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
+import qualified Data.SafeCopy              as SC
+import qualified Data.Serialize             as SL
 import           Prelude                    hiding (catch)
 -------------------------------------------------------------------------------
 import           Database.Cassandra.Basic   hiding (KeySelector (..), delete,
                                              get, getCol, getMulti)
 import qualified Database.Cassandra.Basic   as CB
+import           Database.Cassandra.Pack
 import           Database.Cassandra.Types
 -------------------------------------------------------------------------------
 
@@ -150,13 +146,26 @@ casShow = Marshall
 
 
 -- | Marshall data using the 'Binary' instance. This is one of the
--- very efficient methods available.
+-- efficient methods available.
 casBinary :: BN.Binary a => Marshall a
 casBinary = Marshall BN.encode dec
     where
       dec bs = case BN.runGetOrFail BN.get bs of
                  Left (_,_,err) -> Left err
                  Right (_,_,a) -> Right a
+
+
+-- | Marshall data using the 'SafeCopy' instance. This is quite well
+-- suited for production because it is both very efficient and
+-- provides a systematic way to migrate your data types over time.
+casSafeCopy :: SC.SafeCopy a => Marshall a
+casSafeCopy = Marshall (SL.runPutLazy . SC.safePut) (SL.runGetLazy SC.safeGet)
+
+
+-- | Marshall data using the 'Serialize' instance. Like 'Binary',
+-- 'Serialize' is very efficient.
+casSerialize :: SL.Serialize a => Marshall a
+casSerialize = Marshall SL.encodeLazy SL.decodeLazy
 
 
 ------------------------------------------------------------------------------
