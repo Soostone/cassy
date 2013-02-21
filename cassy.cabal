@@ -62,7 +62,7 @@ Library
   Build-depends:
       base >= 4 && < 5
     , bytestring
-    , binary >= 0.6.4
+    , binary
     , cereal
     , safecopy
     , containers
@@ -90,7 +90,7 @@ test-suite test
   Build-depends:
       base >= 4 && < 5
     , bytestring
-    , binary >= 0.6.4
+    , binary
     , cereal
     , safecopy
     , containers

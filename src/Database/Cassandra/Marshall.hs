@@ -49,7 +49,7 @@ module Database.Cassandra.Marshall
     , Marshall (..)
     , casShow
     , casJSON
-    , casBinary
+    -- , casBinary
     , casSerialize
     , casSafeCopy
 
@@ -123,7 +123,7 @@ import           Database.Cassandra.Types
 -- type.
 --
 -- You can create your own objects of this type with great ease. Just
--- look at one of the examples here ('casJSON', 'casBinary', etc.)
+-- look at one of the examples here ('casJSON', 'casSerialize', etc.)
 data Marshall a = Marshall {
       marshallEncode :: a -> ByteString
     -- ^ An encoding function
@@ -145,14 +145,14 @@ casShow = Marshall
             (readErr "casShow can't read cassandra value" . LB.unpack)
 
 
--- | Marshall data using the 'Binary' instance. This is one of the
--- efficient methods available.
-casBinary :: BN.Binary a => Marshall a
-casBinary = Marshall BN.encode dec
-    where
-      dec bs = case BN.runGetOrFail BN.get bs of
-                 Left (_,_,err) -> Left err
-                 Right (_,_,a) -> Right a
+-- -- | Marshall data using the 'Binary' instance. This is one of the
+-- -- efficient methods available.
+-- casBinary :: BN.Binary a => Marshall a
+-- casBinary = Marshall BN.encode dec
+--     where
+--       dec bs = case BN.runGetOrFail BN.get bs of
+--                  Left (_,_,err) -> Left err
+--                  Right (_,_,a) -> Right a
 
 
 -- | Marshall data using the 'SafeCopy' instance. This is quite well
