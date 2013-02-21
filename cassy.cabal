@@ -58,6 +58,7 @@ Library
     Database.Cassandra.Pool
     Database.Cassandra.Types
     Database.Cassandra.Pack
+    Database.Cassandra.Retry
 
   Build-depends:
       base >= 4 && < 5
@@ -80,7 +81,7 @@ Library
     , data-default
     , async
     , errors
-
+    , MonadCatchIO-transformers >= 0.3
 
 test-suite test
   type: exitcode-stdio-1.0
@@ -107,6 +108,7 @@ test-suite test
     , resource-pool
     , data-default
     , errors
+    , MonadCatchIO-transformers >= 0.3
 
     , test-framework >= 0.6
     , test-framework-quickcheck2 >= 0.2.12.2

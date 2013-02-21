@@ -65,6 +65,10 @@ module Database.Cassandra.Marshall
     , modify_
     , delete
 
+    -- * Retrying Queries
+    , RetrySettings (..)
+    , retrying
+
     -- * Necessary Types
     , ColumnName
     , ModifyOperation (..)
@@ -119,6 +123,7 @@ import           Database.Cassandra.Basic   hiding (KeySelector (..), delete,
                                              get, getCol, getMulti)
 import qualified Database.Cassandra.Basic   as CB
 import           Database.Cassandra.Pack
+import           Database.Cassandra.Retry
 import           Database.Cassandra.Types
 -------------------------------------------------------------------------------
 
