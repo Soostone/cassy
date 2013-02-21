@@ -85,6 +85,14 @@ Example usage:
 This version packs a fairly large changeset. It will almost definitely
 break your code, although the fix/adjustment is likely to be minor.
 
+
+* Added `Database.Cassandra.Marshall` that is now intended to be the
+  primary module to be used in all Cassandra operations. This module
+  supercedes and replaces the `Database.Cassandra.JSON` high level
+  module. Building on top of the Basic module, Marshall allows user to
+  pick the serialization methodology for each of the operations. We
+  provide out of box support for JSON, cereal, safecopy and plain old
+  show/read.
 * Vastly enhanced the Database.Cassandra.Pack module to represent
   types that Cassandra can sort and validate.
 * Added CasType typeclass that offers `encodeCas` and `decodeCas`
@@ -98,11 +106,19 @@ break your code, although the fix/adjustment is likely to be minor.
 * Added a bunch of newtype wrappers to directly map to types Cassandra
   knows. These include `TAscii`, `TBytes`, `TInt`, `TUtf8` and some
   others.
+* A new `TTimeStamp` type makes it easier to have timestamps as
+  Long-encoded columns.
 * Changed several methods in Basic and JSON modules to expect CasType
   column key values instead of concrete ByteString.
 * Added the useful `packCol` and `unpackCol` functions to smoothly
   handle column key type conversions when working with the Basic
   module.
+* There is now a `Retry` module for automatically retrying queries
+  flexibly. Just pass any of your cassy operations to the retrying
+  combinator and it will be retried in case of server-related failure.
+* There is now simple support for pagination of columns in wide rows,
+  CPS-style. See the `paginate` function in
+  `Database.Cassandra.Marshall`.
 * Made the Cas monad a simple type synonym for ReaderT CPool.
 * Added the `get_` metho to `JSON` to make it easier to discard key
   names and just get the column contents.
@@ -120,13 +136,11 @@ break your code, although the fix/adjustment is likely to be minor.
 * Connection pooling now builds on top of the resource-pool library to
   initiate connections to multiple servers in round-robin fashion.
 * Basic.insert now knows how to insert a SuperColumn.
-    
-    
-      
+
+
 ## TODOs
 
 * Add support for counters and batch mutators
-* Add support for composite columns
 * Add support for database/admin operations
 
 ## Contributions
