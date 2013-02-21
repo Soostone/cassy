@@ -7,10 +7,6 @@
 The intent is to develop a high quality, high level driver similar to
 pycassa.
 
-There are currently two modules, one for basic/lower level (but still
-much more pleasant than thrift) operation, and one for some
-experimental JSON serialization support.
-
 ## API Documentation
 
 Please see the Haddocks hosted on HackageDB:
@@ -22,7 +18,7 @@ http://hackage.haskell.org/package/cassy
 
 ### Database.Cassandra.Basic Usage
 
-This module offers straightforward functionality that is still much
+This module offers low-level functionality that is still much
 more pleasant than using Thrift directly.
     
     import Database.Cassandra.Basic
@@ -34,19 +30,21 @@ more pleasant than using Thrift directly.
       getCol pool "testCF" "key1" "col1" QUORUM
 
 
-### Database.Cassandra.JSON Usage
+### Database.Cassandra.Marshall Usage
 
-This module does two things in addition to basic functionality:
+This is the primary high level functionality module. Its use is
+recommended above the other options.
 
-- Row and column keys are polymorphic so that you can use any
-  type that is a member of the CKey typeclass. By default, we provide
-  instances for String, ByteString and Text.
-  
-- Values are automatically marshalled to/from JSON.
+- Columns can be any Haskell type with a CasType instance. See
+  `Database.Cassandra.Pack` for what you can use there out of the box.
+- You can choose how to encode/decode your column content. Out of the
+  box, we support Show/Read, ToJSON/FromJSON, Serialize and SafeCopy.
 
-Example usage:
 
-      import Database.Cassandra.JSON
+
+Example usage: JSON-encoded columns
+
+      import Database.Cassandra.Marshall
       import Data.Aeson
 
       type Name = String
@@ -70,10 +68,10 @@ Example usage:
 
         -- I can use any string-like key and don't have to explicitly
         -- convert person to ByteString.
-        insertCol pool "testCF" "people" nm QUORUM p
+        runCas pool $ insertCol casJSON "testCF" "people" nm QUORUM p
 
         -- Automatically de-serialized back to a datatype
-        res <- getCol pool "testCF" "people" nm QUORUM
+        res <- runCas pool $ getCol casJSON "testCF" "people" nm QUORUM
         case res of
             Just (Person nm age) -> return age
             Nothing -> error "Oh NO!!!"
