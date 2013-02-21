@@ -387,7 +387,7 @@ throwing f = do
 retryCas :: (Functor m, MCIO.MonadCatchIO m)
          => R.RetrySettings
          -- ^ For default settings, just use 'def'
-         -> m b
+         -> m a
          -- ^ Action to perform
-         -> m b
-retryCas set f = R.retrying set shouldRetry f
+         -> m a
+retryCas set f = R.retrying set [shouldRetry] f

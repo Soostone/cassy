@@ -12,6 +12,7 @@ module Database.Cassandra.Types where
 -------------------------------------------------------------------------------
 import           Control.Exception
 import           Control.Monad
+import qualified Control.Monad.CatchIO                     as MCIO
 import qualified Data.ByteString.Char8                     as B
 import           Data.ByteString.Lazy                      (ByteString)
 import qualified Data.ByteString.Lazy.Char8                as LB
@@ -243,8 +244,8 @@ instance Exception CassandraException
 
 
 
-shouldRetry :: CassandraException -> Bool
-shouldRetry e =
+shouldRetry :: Monad m => MCIO.Handler m Bool
+shouldRetry = MCIO.Handler $ \ e -> return $
     case e of
       UnavailableException{} -> True
       TimedOutException{} -> True

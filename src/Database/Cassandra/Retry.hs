@@ -1,4 +1,7 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Database.Cassandra.Retry
@@ -17,9 +20,12 @@ module Database.Cassandra.Retry where
 
 -------------------------------------------------------------------------------
 import           Control.Concurrent
+import           Control.Exception     (SomeException)
 import           Control.Monad.CatchIO
 import           Control.Monad.Trans
 import           Data.Default
+import           Data.Generics
+import           Prelude               hiding (catch)
 -------------------------------------------------------------------------------
 
 
@@ -42,31 +48,76 @@ instance Default RetrySettings where
     def = RetrySettings 5 True 50
 
 
+-- | Retry ALL exceptions that may be raised. To be used with caution.
+retryAll :: (Functor m, MonadCatchIO m)
+         => RetrySettings
+         -> m a
+         -> m a
+retryAll set f = retrying set [h] f
+    where
+      h = Handler $ \ (e :: SomeException) -> return True
+
+
 -- | A flexible action retrying combinator.
-retrying :: (Functor m, Exception e, MonadCatchIO m)
+retrying :: forall m a. (Functor m, MonadCatchIO m)
          => RetrySettings
          -- ^ For default settings, just use 'def'
-         -> (e -> Bool)
-         -- ^ Should a given exception be retried?
-         -> m b
+         -> [Handler m Bool]
+         -- ^ Should a given exception be retried? Action will be
+         -- retried if this returns True.
+         -> m a
          -- ^ Action to perform
-         -> m b
-retrying RetrySettings{..} h f = go 0
+         -> m a
+retrying RetrySettings{..} hs f = go 0
     where
       delay = baseDelay * 1000
       backoffRetry n = liftIO (threadDelay (2^n * delay)) >> go (n+1)
       flatRetry n = liftIO (threadDelay delay) >> go (n+1)
-      go n = do
-        res <- try f
-        case res of
-          Right a -> return a
-          Left e ->
-            case h e of
-              True ->
-                case n >= numRetries of
-                  True -> throw e
-                  False -> if backoff then backoffRetry n else flatRetry n
-              False -> throw e
 
+
+      -- | Convert a (e -> m Bool) handler into (e -> m a) so it can
+      -- be wired into the 'catches' combinator.
+      transHandler :: Int -> Handler m Bool -> Handler m a
+      transHandler n (Handler h) = Handler $ \ e -> do
+          chk <- h e
+          case chk of
+            True ->
+              case n >= numRetries of
+                True -> throw e
+                False -> if backoff then backoffRetry n else flatRetry n
+            False -> throw e
+
+      -- handle :: forall e. Exception e => Handler m Bool -> Int -> e -> m a
+      -- handle (Handler h) n e = do
+      --     chk <- h e
+      --     case chk of
+      --       True ->
+      --         case n >= numRetries of
+      --           True -> throw e
+      --           False -> if backoff then backoffRetry n else flatRetry n
+      --       False -> throw e
+
+      go n = f `catches` map (transHandler n) hs
+
+
+
+                              ------------------
+                              -- Simple Tests --
+                              ------------------
+
+
+
+-- data TestException = TestException deriving (Show, Typeable)
+-- data AnotherException = AnotherException deriving (Show, Typeable)
+
+-- instance Exception TestException
+-- instance Exception AnotherException
+
+
+-- test = retrying def [h1,h2] f
+--     where
+--       f = putStrLn "Running action" >> throw AnotherException
+--       h1 = Handler $ \ (e :: TestException) -> return False
+--       h2 = Handler $ \ (e :: AnotherException) -> return True
 
 
