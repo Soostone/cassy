@@ -251,6 +251,43 @@ getTime = do
   return . fromIntegral . floor $ t * 1000000
 
 
+                               ----------------
+                               -- Pagination --
+                               ----------------
+
+
+-------------------------------------------------------------------------------
+-- | Describes the result of a single pagination action
+data PageResult m a
+  = PDone { pCache :: [a] }
+  -- ^ Done, this is all I have.
+  | PMore { pCache :: [a], pMore :: (m (PageResult m a)) }
+  -- ^ Here's a batch and there is more when you call the action.
+
+
+
+
+-------------------------------------------------------------------------------
+pIsDry x = pIsDone x && null (pCache x)
+
+-------------------------------------------------------------------------------
+pIsDone PDone{} = True
+pIsDone _ = False
+
+
+-------------------------------------------------------------------------------
+pHasMore PMore{} = True
+pHasMore _ = False
+
+
+-------------------------------------------------------------------------------
+instance Monad m => Functor (PageResult m) where
+    fmap f (PDone as) = PDone (fmap f as)
+    fmap f (PMore as m) = PMore (fmap f as) m'
+      where
+        m' = liftM (fmap f) m
+
+
 
                              --------------------
                              -- CKey Typeclass --

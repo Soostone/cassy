@@ -1,5 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE NamedFieldPuns            #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE PatternGuards             #-}
@@ -79,6 +80,14 @@ module Database.Cassandra.Marshall
     , reverseOrder
     , KeySelector (..)
     , KeyRangeType (..)
+
+
+    -- * Pagination
+    , PageResult (..)
+    , pIsDry
+    , pIsDone
+    , pHasMore
+    , paginate
 
     -- * Helpers
     , CKey (..)
@@ -393,3 +402,27 @@ col2val Marshall{..} c = f $ unpackCol c
       err s = error $ "Cassandra Marshall: Value can't be decoded: " ++ s
 col2val _ _ = error "col2val is not implemented for SuperColumns"
 
+
+
+-------------------------------------------------------------------------------
+-- | Paginate over columns in a given key, repeatedly applying the
+-- given 'Selector'. The 'Selector' must be a 'Range' selector, or
+-- else this funtion will raise an exception.
+paginate
+  :: (MonadCassandra m, CasType k)
+  => Marshall a
+  -> ColumnFamily
+  -> RowKey
+  -> Selector
+  -> ConsistencyLevel
+  -> m (PageResult m (k, a))
+paginate m cf k rng@(Range from to ord per) cl = do
+  cs <- reverse `liftM` get m cf k rng cl
+  case cs of
+    [] -> return $ PDone []
+    [a] -> return $ PDone [a]
+    _ ->
+      let cont = paginate m cf k (Range (Just cn) to ord per) cl
+          (cn, _) = head cs
+      in  return $ PMore (reverse (drop 1 cs)) cont
+paginate _ _ _ _ _ = error "Must call paginate with a Range selector"
