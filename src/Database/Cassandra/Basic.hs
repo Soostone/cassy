@@ -34,6 +34,11 @@ module Database.Cassandra.Basic
     , insert
     , delete
 
+    -- * Retrying Queries
+    , R.RetrySettings (..)
+    , R.retrying
+    , retryCas
+
     -- * Filtering
     , Selector(..)
     , range
@@ -87,6 +92,7 @@ import           Control.Applicative
 import           Control.Concurrent.Async
 import           Control.Exception
 import           Control.Monad
+import qualified Control.Monad.CatchIO                      as MCIO
 import           Control.Monad.Reader
 import           Data.ByteString.Lazy                       (ByteString)
 import           Data.Map                                   (Map)
@@ -101,6 +107,7 @@ import           Prelude                                    hiding (catch)
 -------------------------------------------------------------------------------
 import           Database.Cassandra.Pack
 import           Database.Cassandra.Pool
+import qualified Database.Cassandra.Retry                   as R
 import           Database.Cassandra.Types
 -------------------------------------------------------------------------------
 
@@ -370,3 +377,17 @@ throwing f = do
   case res of
     Left e -> throw e
     Right a -> return a
+
+
+-- | 'retrying' with direct cassandra support. Server-related failures
+-- will be retried.
+--
+-- 'UnavailableException', 'TimedOutException' and
+-- 'SchemaDisagreementException' will be automatically retried.
+retryCas :: (Functor m, MCIO.MonadCatchIO m)
+         => R.RetrySettings
+         -- ^ For default settings, just use 'def'
+         -> m b
+         -- ^ Action to perform
+         -> m b
+retryCas set f = R.retrying set shouldRetry f

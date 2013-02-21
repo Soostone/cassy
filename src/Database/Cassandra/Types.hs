@@ -242,6 +242,16 @@ data CassandraException =
 instance Exception CassandraException
 
 
+
+shouldRetry :: CassandraException -> Bool
+shouldRetry e =
+    case e of
+      UnavailableException{} -> True
+      TimedOutException{} -> True
+      SchemaDisagreementException{} -> True
+      _ -> False
+
+
 ------------------------------------------------------------------------------
 -- | Cassandra is VERY sensitive to its timestamp values. As a convention,
 -- timestamps are always in microseconds

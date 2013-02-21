@@ -66,8 +66,9 @@ module Database.Cassandra.Marshall
     , delete
 
     -- * Retrying Queries
-    , RetrySettings (..)
-    , retrying
+    , R.RetrySettings (..)
+    , R.retrying
+    , CB.retryCas
 
     -- * Necessary Types
     , ColumnName
@@ -123,7 +124,7 @@ import           Database.Cassandra.Basic   hiding (KeySelector (..), delete,
                                              get, getCol, getMulti)
 import qualified Database.Cassandra.Basic   as CB
 import           Database.Cassandra.Pack
-import           Database.Cassandra.Retry
+import           Database.Cassandra.Retry   as R
 import           Database.Cassandra.Types
 -------------------------------------------------------------------------------
 
@@ -431,3 +432,5 @@ paginate m cf k rng@(Range from to ord per) cl = do
           (cn, _) = head cs
       in  return $ PMore (reverse (drop 1 cs)) cont
 paginate _ _ _ _ _ = error "Must call paginate with a Range selector"
+
+
