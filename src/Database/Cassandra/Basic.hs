@@ -38,6 +38,8 @@ module Database.Cassandra.Basic
     , R.RetrySettings (..)
     , R.retrying
     , retryCas
+    , casRetryH
+    , networkRetryH
 
     -- * Filtering
     , Selector(..)
@@ -384,10 +386,10 @@ throwing f = do
 --
 -- 'UnavailableException', 'TimedOutException' and
 -- 'SchemaDisagreementException' will be automatically retried.
-retryCas :: (Functor m, MCIO.MonadCatchIO m)
+retryCas :: MCIO.MonadCatchIO m
          => R.RetrySettings
          -- ^ For default settings, just use 'def'
          -> m a
          -- ^ Action to perform
          -> m a
-retryCas set f = R.retrying set [shouldRetry] f
+retryCas set f = R.retrying set [casRetryH, networkRetryH] f

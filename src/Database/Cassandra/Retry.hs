@@ -49,7 +49,7 @@ instance Default RetrySettings where
 
 
 -- | Retry ALL exceptions that may be raised. To be used with caution.
-retryAll :: (Functor m, MonadCatchIO m)
+retryAll :: MonadCatchIO m
          => RetrySettings
          -> m a
          -> m a
@@ -59,7 +59,7 @@ retryAll set f = retrying set [h] f
 
 
 -- | A flexible action retrying combinator.
-retrying :: forall m a. (Functor m, MonadCatchIO m)
+retrying :: forall m a. MonadCatchIO m
          => RetrySettings
          -- ^ For default settings, just use 'def'
          -> [Handler m Bool]

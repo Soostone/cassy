@@ -5,6 +5,7 @@
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE PatternGuards             #-}
 {-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
 
 module Database.Cassandra.Types where
@@ -243,14 +244,21 @@ data CassandraException =
 instance Exception CassandraException
 
 
-
-shouldRetry :: Monad m => MCIO.Handler m Bool
-shouldRetry = MCIO.Handler $ \ e -> return $
+-- | Exception handler that returns @True@ for errors that may be
+-- resolved after a retry. So they are good candidates for 'retrying'
+-- queries.
+casRetryH :: Monad m => MCIO.Handler m Bool
+casRetryH = MCIO.Handler $ \ e -> return $
     case e of
       UnavailableException{} -> True
       TimedOutException{} -> True
       SchemaDisagreementException{} -> True
       _ -> False
+
+
+-- | 'IOException's should be retried
+networkRetryH :: Monad m => MCIO.Handler m Bool
+networkRetryH = MCIO.Handler $ \ (_ :: IOException) -> return True
 
 
 ------------------------------------------------------------------------------
@@ -272,7 +280,7 @@ getTime = do
 data PageResult m a
   = PDone { pCache :: [a] }
   -- ^ Done, this is all I have.
-  | PMore { pCache :: [a], pMore :: (m (PageResult m a)) }
+  | PMore { pCache :: [a], pMore :: m (PageResult m a) }
   -- ^ Here's a batch and there is more when you call the action.
 
 

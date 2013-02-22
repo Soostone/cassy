@@ -69,6 +69,7 @@ module Database.Cassandra.Marshall
     , R.RetrySettings (..)
     , R.retrying
     , CB.retryCas
+    , casRetryH
 
     -- * Necessary Types
     , ColumnName
