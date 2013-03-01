@@ -66,8 +66,6 @@ module Database.Cassandra.Marshall
     , delete
 
     -- * Retrying Queries
-    , R.RetrySettings (..)
-    , R.retrying
     , CB.retryCas
     , casRetryH
 
@@ -107,6 +105,7 @@ module Database.Cassandra.Marshall
 import           Control.Error
 import           Control.Exception
 import           Control.Monad
+import           Control.Retry              as R
 import qualified Data.Aeson                 as A
 import qualified Data.Attoparsec            as Atto (IResult (..), parse)
 import qualified Data.Binary                as BN
@@ -125,7 +124,6 @@ import           Database.Cassandra.Basic   hiding (KeySelector (..), delete,
                                              get, getCol, getMulti)
 import qualified Database.Cassandra.Basic   as CB
 import           Database.Cassandra.Pack
-import           Database.Cassandra.Retry   as R
 import           Database.Cassandra.Types
 -------------------------------------------------------------------------------
 

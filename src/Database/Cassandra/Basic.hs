@@ -35,8 +35,6 @@ module Database.Cassandra.Basic
     , delete
 
     -- * Retrying Queries
-    , R.RetrySettings (..)
-    , R.retrying
     , retryCas
     , casRetryH
     , networkRetryH
@@ -96,6 +94,7 @@ import           Control.Exception
 import           Control.Monad
 import qualified Control.Monad.CatchIO                      as MCIO
 import           Control.Monad.Reader
+import           Control.Retry                              as R
 import           Data.ByteString.Lazy                       (ByteString)
 import           Data.Map                                   (Map)
 import qualified Data.Map                                   as M
@@ -109,7 +108,6 @@ import           Prelude                                    hiding (catch)
 -------------------------------------------------------------------------------
 import           Database.Cassandra.Pack
 import           Database.Cassandra.Pool
-import qualified Database.Cassandra.Retry                   as R
 import           Database.Cassandra.Types
 -------------------------------------------------------------------------------
 
@@ -392,4 +390,4 @@ retryCas :: MCIO.MonadCatchIO m
          -> m a
          -- ^ Action to perform
          -> m a
-retryCas set f = R.retrying set [casRetryH, networkRetryH] f
+retryCas set f = R.recovering set [casRetryH, networkRetryH] f
