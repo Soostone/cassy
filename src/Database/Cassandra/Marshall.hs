@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE NamedFieldPuns            #-}
@@ -92,6 +93,8 @@ module Database.Cassandra.Marshall
     , pIsDone
     , pHasMore
     , paginate
+    , paginateSource
+    , pageToSource
 
     -- * Helpers
     , CKey (..)
@@ -103,8 +106,9 @@ module Database.Cassandra.Marshall
 
 -------------------------------------------------------------------------------
 import           Control.Error
-import           Control.Exception
 import           Control.Monad
+import           Control.Monad.CatchIO
+import           Control.Monad.Trans
 import           Control.Retry              as R
 import qualified Data.Aeson                 as A
 import qualified Data.Attoparsec            as Atto (IResult (..), parse)
@@ -113,6 +117,8 @@ import qualified Data.Binary.Get            as BN
 import qualified Data.ByteString.Char8      as B
 import           Data.ByteString.Lazy.Char8 (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as LB
+import           Data.Conduit
+import qualified Data.Conduit.List          as C
 import           Data.Int                   (Int32)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
@@ -414,22 +420,49 @@ col2val _ _ = error "col2val is not implemented for SuperColumns"
 -- given 'Selector'. The 'Selector' must be a 'Range' selector, or
 -- else this funtion will raise an exception.
 paginate
-  :: (MonadCassandra m, CasType k)
+  :: (MonadCassandra m, MonadCatchIO m, CasType k)
   => Marshall a
+  -- ^ Serialization strategy
   -> ColumnFamily
   -> RowKey
+  -- ^ Paginate columns of this row
   -> Selector
+  -- ^ 'Range' selector to initially and repeatedly apply.
   -> ConsistencyLevel
+  -> RetrySettings
+  -- ^ Retry strategy for each underlying Cassandra call
   -> m (PageResult m (k, a))
-paginate m cf k rng@(Range from to ord per) cl = do
-  cs <- reverse `liftM` get m cf k rng cl
+paginate m cf k rng@(Range from to ord per) cl retry = do
+  cs <- reverse `liftM` retryCas retry (get m cf k rng cl)
   case cs of
     [] -> return $ PDone []
     [a] -> return $ PDone [a]
     _ ->
-      let cont = paginate m cf k (Range (Just cn) to ord per) cl
+      let cont = paginate m cf k (Range (Just cn) to ord per) cl retry
           (cn, _) = head cs
       in  return $ PMore (reverse (drop 1 cs)) cont
-paginate _ _ _ _ _ = error "Must call paginate with a Range selector"
+paginate _ _ _ _ _ _ = error "Must call paginate with a Range selector"
 
+
+
+-------------------------------------------------------------------------------
+-- | Convenience layer: Convert a pagination scheme to a conduit 'Source'.
+pageToSource :: (MonadCatchIO m, Monad m) => PageResult m a -> Source m a
+pageToSource (PDone as) = C.sourceList as
+pageToSource (PMore as m) = C.sourceList as >> lift m >>= pageToSource
+
+
+-------------------------------------------------------------------------------
+-- | Just like 'paginate', but we instead return a conduit 'Source'.
+paginateSource
+    :: (CasType k, MonadCatchIO m, MonadCatchIO (PageResult m),
+        MonadCassandra (PageResult m))
+    => Marshall a
+    -> ColumnFamily
+    -> RowKey
+    -> Selector
+    -> ConsistencyLevel
+    -> RetrySettings
+    -> Source m (PageResult (PageResult m) (k, a))
+paginateSource m cf k rng cl r = pageToSource $ paginate m cf k rng cl r
 

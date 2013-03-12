@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.5.0.0
+Version:             0.5.1.0
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -72,7 +72,7 @@ Library
     , stm
     , syb
     , text
-    , attoparsec                >= 0.10    && < 0.11
+    , attoparsec >= 0.10 && < 0.11
     , aeson
     , Thrift >= 0.6
     , cassandra-thrift >= 0.8
@@ -82,6 +82,8 @@ Library
     , errors
     , MonadCatchIO-transformers >= 0.3
     , retry
+    , conduit >= 0.5
+
 
 test-suite test
   type: exitcode-stdio-1.0
