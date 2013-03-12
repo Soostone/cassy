@@ -455,14 +455,15 @@ pageToSource (PMore as m) = C.sourceList as >> lift m >>= pageToSource
 -------------------------------------------------------------------------------
 -- | Just like 'paginate', but we instead return a conduit 'Source'.
 paginateSource
-    :: (CasType k, MonadCatchIO m, MonadCatchIO (PageResult m),
-        MonadCassandra (PageResult m))
+    :: (CasType k, MonadCatchIO m, MonadCassandra m)
     => Marshall a
     -> ColumnFamily
     -> RowKey
     -> Selector
     -> ConsistencyLevel
     -> RetrySettings
-    -> Source m (PageResult (PageResult m) (k, a))
-paginateSource m cf k rng cl r = pageToSource $ paginate m cf k rng cl r
+    -> Source m (k, a)
+paginateSource m cf k rng cl r = do
+    buf <- lift $ paginate m cf k rng cl r
+    pageToSource buf
 
