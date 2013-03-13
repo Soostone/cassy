@@ -71,6 +71,7 @@ module Database.Cassandra.Marshall
     , casRetryH
 
     -- * Necessary Types
+    , RowKey
     , ColumnName
     , ModifyOperation (..)
     , ColumnFamily
