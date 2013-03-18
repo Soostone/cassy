@@ -61,7 +61,12 @@ newtype TTimeStamp = TTimeStamp { getTimeStamp :: TLong }
     deriving (Eq,Show,Read,Ord,Enum,Num,Real,Integral,CasType)
 
 
--- | Convert commonly used 'UTCTime' to 'TTimeStamp'
+-- | Convert commonly used 'UTCTime' to 'TTimeStamp'.
+--
+-- First converts to seconds since epoch (POSIX seconds), then
+-- multiplies by a million and floors the resulting value. The value,
+-- therefore, is in micro-seconds and is accurate to within a
+-- microsecond.
 toTimeStamp :: UTCTime -> TTimeStamp
 toTimeStamp utc = fromIntegral . floor . (* 1e6) $ utcTimeToPOSIXSeconds utc
 
