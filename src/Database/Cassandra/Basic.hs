@@ -7,6 +7,18 @@
 {-# LANGUAGE PatternGuards              #-}
 {-# LANGUAGE RecordWildCards            #-}
 
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Database.Cassandra.Basic
+-- Copyright   :  Ozgun Ataman
+-- License     :  BSD3
+--
+-- Maintainer  :  Ozgun Ataman
+-- Stability   :  experimental
+--
+-- Low-level functionality for working with Cassandra at the most
+-- basic level.
+----------------------------------------------------------------------------
 
 module Database.Cassandra.Basic
 
