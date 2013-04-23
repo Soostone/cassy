@@ -101,8 +101,7 @@ import qualified Data.Map                                   as M
 import           Data.Maybe                                 (mapMaybe)
 import           Data.Traversable                           (Traversable)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import           Database.Cassandra.Thrift.Cassandra_Types 
-                                                             (ConsistencyLevel (..))
+import           Database.Cassandra.Thrift.Cassandra_Types  (ConsistencyLevel (..))
 import qualified Database.Cassandra.Thrift.Cassandra_Types  as T
 import           Prelude                                    hiding (catch)
 -------------------------------------------------------------------------------
