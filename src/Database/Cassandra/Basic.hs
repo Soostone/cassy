@@ -7,6 +7,18 @@
 {-# LANGUAGE PatternGuards              #-}
 {-# LANGUAGE RecordWildCards            #-}
 
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Database.Cassandra.Basic
+-- Copyright   :  Ozgun Ataman
+-- License     :  BSD3
+--
+-- Maintainer  :  Ozgun Ataman
+-- Stability   :  experimental
+--
+-- Low-level functionality for working with Cassandra at the most
+-- basic level.
+----------------------------------------------------------------------------
 
 module Database.Cassandra.Basic
 
@@ -101,8 +113,7 @@ import qualified Data.Map                                   as M
 import           Data.Maybe                                 (mapMaybe)
 import           Data.Traversable                           (Traversable)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import           Database.Cassandra.Thrift.Cassandra_Types 
-                                                             (ConsistencyLevel (..))
+import           Database.Cassandra.Thrift.Cassandra_Types  (ConsistencyLevel (..))
 import qualified Database.Cassandra.Thrift.Cassandra_Types  as T
 import           Prelude                                    hiding (catch)
 -------------------------------------------------------------------------------
