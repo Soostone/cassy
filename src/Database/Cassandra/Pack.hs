@@ -40,6 +40,7 @@ import qualified Data.Text.Encoding         as T
 import qualified Data.Text.Lazy             as LT
 import qualified Data.Text.Lazy.Encoding    as LT
 import           Data.Time
+import           Data.Time
 import           Data.Time.Clock.POSIX
 -------------------------------------------------------------------------------
 
@@ -178,6 +179,19 @@ instance CasType TLong where
 instance CasType TUtf8 where
     encodeCas = LB.fromChunks . return . T.encodeUtf8 . getUtf8
     decodeCas = TUtf8 . T.decodeUtf8 . B.concat . LB.toChunks
+
+
+-------------------------------------------------------------------------------
+-- | Encode days as 'LongType' via 'TLong'.
+instance CasType Day where
+    encodeCas = encodeCas . TLong . toModifiedJulianDay
+    decodeCas = ModifiedJulianDay . getLong . decodeCas
+
+
+-- | Via 'TTimeStamp'
+instance CasType UTCTime where
+    encodeCas = encodeCas . toTimeStamp
+    decodeCas = fromTimeStamp . decodeCas
 
 
 -------------------------------------------------------------------------------
