@@ -168,7 +168,8 @@ instance CasType Int where
 
 
 -------------------------------------------------------------------------------
--- | Pack as an 8 byte unsigned number; negative signs are lost.
+-- | Pack as an 8 byte unsigned number; negative signs are lost. Maps
+-- to 'LongType'.
 instance CasType TLong where
     encodeCas = runPut . putWord64be . fromIntegral . getLong
     decodeCas = TLong . fromIntegral . runGet getWord64be
@@ -188,7 +189,7 @@ instance CasType Day where
     decodeCas = ModifiedJulianDay . getLong . decodeCas
 
 
--- | Via 'TTimeStamp'
+-- | Via 'TTimeStamp', which is via 'TLong'
 instance CasType UTCTime where
     encodeCas = encodeCas . toTimeStamp
     decodeCas = fromTimeStamp . decodeCas
