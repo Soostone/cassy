@@ -89,9 +89,6 @@ Example usage: JSON-encoded columns
   show/read.
 * A new `TTimeStamp` type makes it easier to have timestamps as
   Long-encoded columns.
-* There is now a `Retry` module for automatically retrying queries
-  flexibly. Just pass any of your cassy operations to the retrying
-  combinator and it will be retried in case of server-related failure.
 * There is now simple support for pagination of columns in wide rows,
   CPS-style. See the `paginate` function in
   `Database.Cassandra.Marshall`.
