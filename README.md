@@ -1,4 +1,3 @@
-
 # Cassy - High Level Cassandra Client for Haskell
 
 
@@ -20,15 +19,16 @@ http://hackage.haskell.org/package/cassy
 
 This module offers low-level functionality that is still much
 more pleasant than using Thrift directly.
-    
-    import Database.Cassandra.Basic
 
-    test :: IO ()
-    test = do
-      pool <- createCassandraPool defServers 3 300 "TestKeySpace"
-      insert pool "testCF" "key1" QUORUM [col "col1" "value1"]
-      getCol pool "testCF" "key1" "col1" QUORUM
+```haskell
+import Database.Cassandra.Basic
 
+test :: IO ()
+test = do
+  pool <- createCassandraPool defServers 3 300 "TestKeySpace"
+  insert pool "testCF" "key1" QUORUM [col "col1" "value1"]
+  getCol pool "testCF" "key1" "col1" QUORUM
+```
 
 ### Database.Cassandra.Marshall Usage
 
@@ -43,37 +43,39 @@ recommended above the other options.
 
 Example usage: JSON-encoded columns
 
-      import Database.Cassandra.Marshall
-      import Data.Aeson
+```haskell
+import Database.Cassandra.Marshall
+import Data.Aeson
 
-      type Name = String
-      type Age = Int
-      data Person = Person Name Age
+type Name = String
+type Age = Int
+data Person = Person Name Age
 
-      -- Define JSON serialization for our data structure
+-- Define JSON serialization for our data structure
 
-      instance ToJSON Person where
-          toJSON (Person nm age) = toJSON (nm,age)
+instance ToJSON Person where
+    toJSON (Person nm age) = toJSON (nm,age)
 
-      instance FromJSON Person where
-          parseJSON v = do
-              (nm, age) <- parseJSON v
-              return $ Person nm age
+instance FromJSON Person where
+    parseJSON v = do
+        (nm, age) <- parseJSON v
+        return $ Person nm age
 
 
-      test :: Person -> IO ()
-      test p@(Person nm age) = do
-        pool <- createCassandraPool defServers 3 300 "TestKeySpace"
+test :: Person -> IO ()
+test p@(Person nm age) = do
+  pool <- createCassandraPool defServers 3 300 "TestKeySpace"
 
-        -- I can use any string-like key and don't have to explicitly
-        -- convert person to ByteString.
-        runCas pool $ insertCol casJSON "testCF" "people" nm QUORUM p
+  -- I can use any string-like key and don't have to explicitly
+  -- convert person to ByteString.
+  runCas pool $ insertCol casJSON "testCF" "people" nm QUORUM p
 
-        -- Automatically de-serialized back to a datatype
-        res <- runCas pool $ getCol casJSON "testCF" "people" nm QUORUM
-        case res of
-            Just (Person nm age) -> return age
-            Nothing -> error "Oh NO!!!"
+  -- Automatically de-serialized back to a datatype
+  res <- runCas pool $ getCol casJSON "testCF" "people" nm QUORUM
+  case res of
+      Just (Person nm age) -> return age
+      Nothing -> error "Oh NO!!!"
+```
 
 ## Release Notes
 
