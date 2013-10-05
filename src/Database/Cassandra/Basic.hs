@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE NoMonomorphismRestriction  #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -102,10 +103,10 @@ module Database.Cassandra.Basic
 -------------------------------------------------------------------------------
 import           Control.Applicative
 import           Control.Concurrent.Async
-import           Control.Exception
+import           Control.Exception.Lifted                   as E
 import           Control.Monad
-import qualified Control.Monad.CatchIO                      as MCIO
 import           Control.Monad.Reader
+import           Control.Monad.Trans.Control
 import           Control.Retry                              as R
 import           Data.ByteString.Lazy                       (ByteString)
 import           Data.Map                                   (Map)
@@ -395,7 +396,7 @@ throwing f = do
 --
 -- 'UnavailableException', 'TimedOutException' and
 -- 'SchemaDisagreementException' will be automatically retried.
-retryCas :: MCIO.MonadCatchIO m
+retryCas :: (MonadBaseControl IO m, MonadIO m)
          => R.RetrySettings
          -- ^ For default settings, just use 'def'
          -> m a

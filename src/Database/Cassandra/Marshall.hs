@@ -107,29 +107,30 @@ module Database.Cassandra.Marshall
 
 -------------------------------------------------------------------------------
 import           Control.Error
+import           Control.Exception.Lifted    as E
 import           Control.Monad
-import           Control.Monad.CatchIO
 import           Control.Monad.Trans
-import           Control.Retry              as R
-import qualified Data.Aeson                 as A
-import qualified Data.Attoparsec            as Atto (IResult (..), parse)
-import qualified Data.Binary                as BN
-import qualified Data.Binary.Get            as BN
-import qualified Data.ByteString.Char8      as B
-import           Data.ByteString.Lazy.Char8 (ByteString)
-import qualified Data.ByteString.Lazy.Char8 as LB
+import           Control.Monad.Trans.Control
+import           Control.Retry               as R
+import qualified Data.Aeson                  as A
+import qualified Data.Attoparsec             as Atto (IResult (..), parse)
+import qualified Data.Binary                 as BN
+import qualified Data.Binary.Get             as BN
+import qualified Data.ByteString.Char8       as B
+import           Data.ByteString.Lazy.Char8  (ByteString)
+import qualified Data.ByteString.Lazy.Char8  as LB
 import           Data.Conduit
-import qualified Data.Conduit.List          as C
-import           Data.Int                   (Int32)
-import           Data.Map                   (Map)
-import qualified Data.Map                   as M
-import qualified Data.SafeCopy              as SC
-import qualified Data.Serialize             as SL
-import           Prelude                    hiding (catch)
+import qualified Data.Conduit.List           as C
+import           Data.Int                    (Int32)
+import           Data.Map                    (Map)
+import qualified Data.Map                    as M
+import qualified Data.SafeCopy               as SC
+import qualified Data.Serialize              as SL
+import           Prelude                     hiding (catch)
 -------------------------------------------------------------------------------
-import           Database.Cassandra.Basic   hiding (KeySelector (..), delete,
-                                             get, getCol, getMulti)
-import qualified Database.Cassandra.Basic   as CB
+import           Database.Cassandra.Basic    hiding (KeySelector (..), delete,
+                                              get, getCol, getMulti)
+import qualified Database.Cassandra.Basic    as CB
 import           Database.Cassandra.Pack
 import           Database.Cassandra.Types
 -------------------------------------------------------------------------------
@@ -421,7 +422,7 @@ col2val _ _ = error "col2val is not implemented for SuperColumns"
 -- given 'Selector'. The 'Selector' must be a 'Range' selector, or
 -- else this funtion will raise an exception.
 paginate
-  :: (MonadCassandra m, MonadCatchIO m, CasType k)
+  :: (MonadCassandra m, MonadBaseControl IO m, CasType k)
   => Marshall a
   -- ^ Serialization strategy
   -> ColumnFamily
@@ -448,7 +449,7 @@ paginate _ _ _ _ _ _ = error "Must call paginate with a Range selector"
 
 -------------------------------------------------------------------------------
 -- | Convenience layer: Convert a pagination scheme to a conduit 'Source'.
-pageToSource :: (MonadCatchIO m, Monad m) => PageResult m a -> Source m a
+pageToSource :: (MonadBaseControl IO m, Monad m) => PageResult m a -> Source m a
 pageToSource (PDone as) = C.sourceList as
 pageToSource (PMore as m) = C.sourceList as >> lift m >>= pageToSource
 
@@ -456,7 +457,7 @@ pageToSource (PMore as m) = C.sourceList as >> lift m >>= pageToSource
 -------------------------------------------------------------------------------
 -- | Just like 'paginate', but we instead return a conduit 'Source'.
 paginateSource
-    :: (CasType k, MonadCatchIO m, MonadCassandra m)
+    :: (CasType k, MonadBaseControl IO m, MonadCassandra m)
     => Marshall a
     -> ColumnFamily
     -> RowKey

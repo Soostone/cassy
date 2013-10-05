@@ -12,8 +12,8 @@ module Database.Cassandra.Types where
 
 -------------------------------------------------------------------------------
 import           Control.Exception
+import           Control.Exception.Lifted                  as E
 import           Control.Monad
-import qualified Control.Monad.CatchIO                     as MCIO
 import qualified Data.ByteString.Char8                     as B
 import           Data.ByteString.Lazy                      (ByteString)
 import qualified Data.ByteString.Lazy.Char8                as LB
@@ -247,8 +247,8 @@ instance Exception CassandraException
 -- | Exception handler that returns @True@ for errors that may be
 -- resolved after a retry. So they are good candidates for 'retrying'
 -- queries.
-casRetryH :: Monad m => MCIO.Handler m Bool
-casRetryH = MCIO.Handler $ \ e -> return $
+casRetryH :: Monad m => E.Handler m Bool
+casRetryH = E.Handler $ \ e -> return $
     case e of
       UnavailableException{} -> True
       TimedOutException{} -> True
@@ -257,8 +257,8 @@ casRetryH = MCIO.Handler $ \ e -> return $
 
 
 -- | 'IOException's should be retried
-networkRetryH :: Monad m => MCIO.Handler m Bool
-networkRetryH = MCIO.Handler $ \ (_ :: IOException) -> return True
+networkRetryH :: Monad m => E.Handler m Bool
+networkRetryH = E.Handler $ \ (_ :: IOException) -> return True
 
 
 ------------------------------------------------------------------------------

@@ -78,6 +78,11 @@ Example usage: JSON-encoded columns
 ## Release Notes
 
 
+### Version 0.6
+
+* Updated to work with monad-control instead of MonadCatchIO.
+* Now using retry >= 0.3 for the same reason.
+
 ### Version 0.5
 
 * Added `Database.Cassandra.Marshall` that is now intended to be the

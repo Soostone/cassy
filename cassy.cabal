@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.5.2
+Version:             0.6
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -91,8 +91,10 @@ Library
     , data-default
     , async
     , errors
-    , MonadCatchIO-transformers >= 0.3
-    , retry < 0.3
+    , monad-control
+    , transformers-base
+    , lifted-base
+    , retry >= 0.3
     , conduit >= 0.5
 
 
@@ -121,8 +123,10 @@ test-suite test
     , resource-pool
     , data-default
     , errors
-    , MonadCatchIO-transformers >= 0.3
-    , retry < 0.3
+    , monad-control
+    , transformers-base
+    , lifted-base
+    , retry >= 0.3
 
     , test-framework >= 0.6
     , test-framework-quickcheck2 >= 0.2.12.2
