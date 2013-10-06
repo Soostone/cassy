@@ -177,6 +177,13 @@ instance CasType Int64 where
 
 
 -------------------------------------------------------------------------------
+-- | Assumed to be a 64-bit Int and encoded as such.
+instance CasType Int where
+    encodeCas = encodeCas . TInt64 . fromIntegral
+    decodeCas = fromIntegral . getInt64 . decodeCas
+
+
+-------------------------------------------------------------------------------
 -- | Pack as an 8 byte unsigned number; negative signs are lost. Maps
 -- to 'LongType'.
 instance CasType TLong where
