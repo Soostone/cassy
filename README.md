@@ -82,6 +82,7 @@ Example usage: JSON-encoded columns
 
 * Updated to work with monad-control instead of MonadCatchIO.
 * Now using retry >= 0.3 for the same reason.
+* More CasType instances in Pack module for completeness.
 
 ### Version 0.5
 
