@@ -86,17 +86,9 @@ module Database.Cassandra.Basic
     , CKey (..)
     , fromColKey'
 
-    -- * Working with column types
-    , CasType (..)
-    , TAscii (..)
-    , TBytes (..)
-    , TCounter (..)
-    , TInt (..)
-    , TInt32 (..)
-    , TUtf8 (..)
-    , TUUID (..)
-    , TLong (..)
-    , Exclusive (..)
+    -- * Cassandra Column Key Types
+    , module Database.Cassandra.Pack
+
     ) where
 
 

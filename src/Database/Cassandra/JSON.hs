@@ -71,17 +71,9 @@ module Database.Cassandra.JSON
     , CKey (..)
     , fromColKey'
 
-    -- * Working with column types
-    , CasType (..)
-    , TAscii (..)
-    , TBytes (..)
-    , TCounter (..)
-    , TInt (..)
-    , TInt32 (..)
-    , TUtf8 (..)
-    , TUUID (..)
-    , TLong (..)
-    , Exclusive (..)
+    -- * Cassandra Column Key Types
+    , module Database.Cassandra.Pack
+
     ) where
 
 -------------------------------------------------------------------------------
@@ -101,6 +93,7 @@ import           Prelude                    hiding (catch)
 import           Database.Cassandra.Basic   hiding (KeySelector (..), delete,
                                              get, getCol, getMulti)
 import qualified Database.Cassandra.Basic   as CB
+import           Database.Cassandra.Pack
 -------------------------------------------------------------------------------
 
 
