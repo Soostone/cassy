@@ -10,8 +10,8 @@ module Database.Cassandra.Pack
     , TAscii (..)
     , TBytes (..)
     , TCounter (..)
-    , TInt (..)
     , TInt32 (..)
+    , TInt64 (..)
     , TUtf8 (..)
     , TUUID (..)
     , TLong (..)
@@ -42,6 +42,7 @@ import qualified Data.Text.Lazy.Encoding    as LT
 import           Data.Time
 import           Data.Time
 import           Data.Time.Clock.POSIX
+import           GHC.Int
 -------------------------------------------------------------------------------
 
 
@@ -51,9 +52,11 @@ newtype TAscii = TAscii { getAscii :: ByteString } deriving (Eq,Show,Read,Ord)
 newtype TBytes = TBytes { getTBytes :: ByteString } deriving (Eq,Show,Read,Ord)
 newtype TCounter = TCounter { getCounter :: ByteString } deriving (Eq,Show,Read,Ord)
 newtype TInt32 = TInt32 { getInt32 :: Int32 } deriving (Eq,Show,Read,Ord)
-newtype TInt = TInt { getInt :: Integer } deriving (Eq,Show,Read,Ord,Enum,Real,Integral,Num)
+newtype TInt64 = TInt64 { getInt64 :: Int64 }
+    deriving (Eq,Show,Read,Ord,Enum,Real,Integral,Num)
 newtype TUUID = TUUID { getUUID :: ByteString } deriving (Eq,Show,Read,Ord)
-newtype TLong = TLong { getLong :: Integer } deriving (Eq,Show,Read,Ord,Enum,Real,Integral,Num)
+newtype TLong = TLong { getLong :: Integer }
+    deriving (Eq,Show,Read,Ord,Enum,Real,Integral,Num)
 newtype TUtf8 = TUtf8 { getUtf8 :: Text } deriving (Eq,Show,Read,Ord)
 
 
@@ -156,15 +159,21 @@ instance CasType TInt32 where
 
 -------------------------------------------------------------------------------
 -- | Pack as an 8 byte number - same as 'TLong'
-instance CasType TInt where
-    encodeCas = runPut . putWord64be . fromIntegral . getInt
-    decodeCas = TInt . fromIntegral . runGet getWord64be
+instance CasType TInt64 where
+    encodeCas = runPut . putWord64be . fromIntegral . getInt64
+    decodeCas = TInt64 . fromIntegral . runGet getWord64be
 
 
 -------------------------------------------------------------------------------
-instance CasType Int where
-    encodeCas = encodeCas . TInt . fromIntegral
-    decodeCas = fromIntegral . getInt . decodeCas
+instance CasType Int32 where
+    encodeCas = encodeCas . TInt32 . fromIntegral
+    decodeCas = fromIntegral . getInt32 . decodeCas
+
+
+-------------------------------------------------------------------------------
+instance CasType Int64 where
+    encodeCas = encodeCas . TInt64 . fromIntegral
+    decodeCas = fromIntegral . getInt64 . decodeCas
 
 
 -------------------------------------------------------------------------------
