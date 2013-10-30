@@ -82,7 +82,11 @@ Example usage: JSON-encoded columns
 
 * Updated to work with monad-control instead of MonadCatchIO.
 * Now using retry >= 0.3 for the same reason.
-* More CasType instances in Pack module for completeness.
+* More CasType instances in Pack module for completeness. Preference
+  is shifting to using native Haskell types directly.
+* `Database.Cassandra.JSON` module is now formally deprecated and will
+  be removed in 0.7. Please switch to `Marshall`, which can replace it
+  in entirety.
 
 ### Version 0.5
 
