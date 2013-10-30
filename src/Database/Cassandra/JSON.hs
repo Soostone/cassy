@@ -6,20 +6,19 @@
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
-
-{-|
-    A higher level module for working with Cassandra.
-
-
-    All row and column keys are standardized to be of strict types.
-    Row keys are Text, while Column keys are ByteString. This might change
-    in the future and we may revert to entirely ByteString keys.
-
-
-    Serialization and de-serialization of Column values are taken care of
-    automatically using the ToJSON and FromJSON typeclasses.
-
--}
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Database.Cassandra.JSON
+-- Copyright   :  Ozgun Ataman
+-- License     :  BSD3
+--
+-- Maintainer  :  Ozgun Ataman
+-- Stability   :  experimental
+--
+-- This module has been deprecated and will be removed in version 0.7.
+-- Every bit of functionality here is also available in the
+-- Database.Cassandra.Marshall module, which is what you should use instead.
+----------------------------------------------------------------------------
 
 module Database.Cassandra.JSON
     (
