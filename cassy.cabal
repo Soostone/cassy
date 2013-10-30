@@ -10,7 +10,7 @@ Category:            Database
 Build-type:          Simple
 description:
   The objective is to completely isolate away the thrift layer, providing
-  a more idiomatic Haskell experience working with Cassandra. Be sure
+  a more idiomatic and naruall Haskell experience working with Cassandra. Be sure
   to check out the README on Github for some more explanation and
   Release Notes, which is helpful in talking about what this library
   can do.
