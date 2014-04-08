@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.6
+Version:             0.6.0.1
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -102,31 +102,17 @@ test-suite test
   type: exitcode-stdio-1.0
   main-is: Test.hs
   ghc-options: -Wall
-  hs-source-dirs: test src
+  hs-source-dirs: test
   Build-depends:
       base >= 4 && < 5
+    , cassy
     , bytestring
-    , binary
-    , cereal
-    , safecopy
-    , containers
-    , network
-    , time
-    , mtl
-    , stm
-    , syb
     , text
-    , attoparsec                >= 0.10    && < 0.11
-    , aeson
-    , Thrift >= 0.6
-    , cassandra-thrift >= 0.8
-    , resource-pool
-    , data-default
-    , errors
-    , monad-control
-    , transformers-base
-    , lifted-base
-    , retry >= 0.3
+    , Thrift
+    , network
+    , cassandra-thrift
+    , time
+    , containers
 
     , test-framework >= 0.6
     , test-framework-quickcheck2 >= 0.2.12.2

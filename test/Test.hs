@@ -16,8 +16,7 @@ import           Data.DeriveTH
 import qualified Data.Map                                   as M
 import qualified Data.Text                                  as T
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
-import           Database.Cassandra.Thrift.Cassandra_Types 
-                                                             (ConsistencyLevel (..))
+import           Database.Cassandra.Thrift.Cassandra_Types  (ConsistencyLevel (..))
 import           Database.Cassandra.Thrift.Cassandra_Types  as T
 import           System.IO.Unsafe
 import           Test.Framework                             (defaultMain,
@@ -59,7 +58,7 @@ deriving instance Arbitrary TAscii
 deriving instance Arbitrary TBytes
 deriving instance Arbitrary TCounter
 deriving instance Arbitrary TInt32
-deriving instance Arbitrary TInt
+deriving instance Arbitrary TInt64
 deriving instance Arbitrary TUUID
 deriving instance Arbitrary TLong
 deriving instance Arbitrary TUtf8
