@@ -79,7 +79,7 @@ Library
     , bytestring
     , cassandra-thrift     >= 0.8
     , cereal
-    , conduit              >= 1.0
+    , conduit              >= 1.1 && < 1.2
     , containers
     , data-default
     , errors
