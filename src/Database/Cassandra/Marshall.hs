@@ -107,16 +107,11 @@ module Database.Cassandra.Marshall
 
 -------------------------------------------------------------------------------
 import           Control.Error
-import           Control.Exception.Lifted    as E
 import           Control.Monad
+import           Control.Monad.Catch
 import           Control.Monad.Trans
-import           Control.Monad.Trans.Control
 import           Control.Retry               as R
 import qualified Data.Aeson                  as A
-import qualified Data.Attoparsec             as Atto (IResult (..), parse)
-import qualified Data.Binary                 as BN
-import qualified Data.Binary.Get             as BN
-import qualified Data.ByteString.Char8       as B
 import           Data.ByteString.Lazy.Char8  (ByteString)
 import qualified Data.ByteString.Lazy.Char8  as LB
 import           Data.Conduit
@@ -126,7 +121,7 @@ import           Data.Map                    (Map)
 import qualified Data.Map                    as M
 import qualified Data.SafeCopy               as SC
 import qualified Data.Serialize              as SL
-import           Prelude                     hiding (catch)
+import           Prelude
 -------------------------------------------------------------------------------
 import           Database.Cassandra.Basic    hiding (KeySelector (..), delete,
                                               get, getCol, getMulti)
@@ -203,7 +198,7 @@ casSerialize = Marshall SL.encodeLazy SL.decodeLazy
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify
-  :: (MonadCassandra m, CasType k)
+  :: (MonadCassandra m, MonadThrow m, CasType k)
   => Marshall a
   -- ^ A serialization methodology. Example: 'casJSON'
   -> ColumnFamily
@@ -234,7 +229,7 @@ modify Marshall{..} cf k cn rcl wcl f =
     case res of
       Nothing              -> execF Nothing
       Just Column{..}      -> execF (hush $ marshallDecode colVal)
-      Just SuperColumn{..} -> throw $
+      Just SuperColumn{..} -> throwM $
         OperationNotSupported "modify not implemented for SuperColumn"
 
 
@@ -244,7 +239,7 @@ modify Marshall{..} cf k cn rcl wcl f =
 -- This method may throw a 'CassandraException' for all exceptions other than
 -- 'NotFoundException'.
 modify_
-  :: (MonadCassandra m, CasType k)
+  :: (MonadCassandra m, CasType k, MonadThrow m)
   => Marshall a
   -> ColumnFamily
   -> RowKey
@@ -422,7 +417,7 @@ col2val _ _ = error "col2val is not implemented for SuperColumns"
 -- given 'Selector'. The 'Selector' must be a 'Range' selector, or
 -- else this funtion will raise an exception.
 paginate
-  :: (MonadCassandra m, MonadBaseControl IO m, CasType k)
+  :: (MonadCassandra m, MonadCatch m, CasType k)
   => Marshall a
   -- ^ Serialization strategy
   -> ColumnFamily
@@ -434,7 +429,7 @@ paginate
   -> RetrySettings
   -- ^ Retry strategy for each underlying Cassandra call
   -> m (PageResult m (k, a))
-paginate m cf k rng@(Range from to ord per) cl retry = do
+paginate m cf k rng@(Range _ to ord per) cl retry = do
   cs <- reverse `liftM` retryCas retry (get m cf k rng cl)
   case cs of
     [] -> return $ PDone []
@@ -449,7 +444,7 @@ paginate _ _ _ _ _ _ = error "Must call paginate with a Range selector"
 
 -------------------------------------------------------------------------------
 -- | Convenience layer: Convert a pagination scheme to a conduit 'Source'.
-pageToSource :: (MonadBaseControl IO m, Monad m) => PageResult m a -> Source m a
+pageToSource :: (Monad m) => PageResult m a -> Source m a
 pageToSource (PDone as) = C.sourceList as
 pageToSource (PMore as m) = C.sourceList as >> lift m >>= pageToSource
 
@@ -457,7 +452,7 @@ pageToSource (PMore as m) = C.sourceList as >> lift m >>= pageToSource
 -------------------------------------------------------------------------------
 -- | Just like 'paginate', but we instead return a conduit 'Source'.
 paginateSource
-    :: (CasType k, MonadBaseControl IO m, MonadCassandra m)
+    :: (CasType k, MonadCassandra m, MonadCatch m)
     => Marshall a
     -> ColumnFamily
     -> RowKey

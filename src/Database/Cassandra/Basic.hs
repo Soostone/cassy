@@ -95,10 +95,9 @@ module Database.Cassandra.Basic
 -------------------------------------------------------------------------------
 import           Control.Applicative
 import           Control.Concurrent.Async
-import           Control.Exception.Lifted                   as E
 import           Control.Monad
+import           Control.Monad.Catch
 import           Control.Monad.Reader
-import           Control.Monad.Trans.Control
 import           Control.Retry                              as R
 import           Data.ByteString.Lazy                       (ByteString)
 import           Data.Map                                   (Map)
@@ -361,16 +360,16 @@ wrapException :: IO a -> IO a
 wrapException a = f
     where
       f = a
-        `catch` (\ (T.NotFoundException) -> throw NotFoundException)
+        `catch` (\ (T.NotFoundException) -> throwM NotFoundException)
         `catch` (\ (T.InvalidRequestException e) ->
-                  throw . InvalidRequestException $ maybe "" id e)
-        `catch` (\ T.UnavailableException -> throw UnavailableException)
-        `catch` (\ T.TimedOutException -> throw TimedOutException)
+                  throwM . InvalidRequestException $ maybe "" id e)
+        `catch` (\ T.UnavailableException -> throwM UnavailableException)
+        `catch` (\ T.TimedOutException -> throwM TimedOutException)
         `catch` (\ (T.AuthenticationException e) ->
-                  throw . AuthenticationException $ maybe "" id e)
+                  throwM . AuthenticationException $ maybe "" id e)
         `catch` (\ (T.AuthorizationException e) ->
-                  throw . AuthorizationException $ maybe "" id e)
-        `catch` (\ T.SchemaDisagreementException -> throw SchemaDisagreementException)
+                  throwM . AuthorizationException $ maybe "" id e)
+        `catch` (\ T.SchemaDisagreementException -> throwM SchemaDisagreementException)
 
 
 -------------------------------------------------------------------------------
@@ -379,7 +378,7 @@ throwing :: IO (Either CassandraException a) -> IO a
 throwing f = do
   res <- f
   case res of
-    Left e -> throw e
+    Left e -> throwM e
     Right a -> return a
 
 
@@ -388,7 +387,7 @@ throwing f = do
 --
 -- 'UnavailableException', 'TimedOutException' and
 -- 'SchemaDisagreementException' will be automatically retried.
-retryCas :: (MonadBaseControl IO m, MonadIO m)
+retryCas :: (MonadCatch m, MonadIO m)
          => R.RetrySettings
          -- ^ For default settings, just use 'def'
          -> m a
