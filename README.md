@@ -78,6 +78,11 @@ Example usage: JSON-encoded columns
 ## Release Notes
 
 
+### Version 0.7
+
+* We now use retry >= 0.4 and hence exceptions machinery instead of
+  monad-control.
+
 ### Version 0.6
 
 * Updated to work with monad-control instead of MonadCatchIO.
