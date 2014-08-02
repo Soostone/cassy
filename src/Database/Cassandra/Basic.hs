@@ -388,7 +388,7 @@ throwing f = do
 -- 'UnavailableException', 'TimedOutException' and
 -- 'SchemaDisagreementException' will be automatically retried.
 retryCas :: (MonadCatch m, MonadIO m)
-         => R.RetrySettings
+         => RetryPolicy
          -- ^ For default settings, just use 'def'
          -> m a
          -- ^ Action to perform

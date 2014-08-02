@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.7
+Version:             0.7.1
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -87,7 +87,7 @@ Library
     , mtl
     , network
     , resource-pool
-    , retry                >= 0.4 && < 0.5
+    , retry                >= 0.5 && < 0.6
     , safecopy
     , stm
     , syb

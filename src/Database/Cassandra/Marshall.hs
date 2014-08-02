@@ -110,22 +110,22 @@ import           Control.Error
 import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.Trans
-import           Control.Retry               as R
-import qualified Data.Aeson                  as A
-import           Data.ByteString.Lazy.Char8  (ByteString)
-import qualified Data.ByteString.Lazy.Char8  as LB
+import           Control.Retry              as R
+import qualified Data.Aeson                 as A
+import           Data.ByteString.Lazy.Char8 (ByteString)
+import qualified Data.ByteString.Lazy.Char8 as LB
 import           Data.Conduit
-import qualified Data.Conduit.List           as C
-import           Data.Int                    (Int32)
-import           Data.Map                    (Map)
-import qualified Data.Map                    as M
-import qualified Data.SafeCopy               as SC
-import qualified Data.Serialize              as SL
+import qualified Data.Conduit.List          as C
+import           Data.Int                   (Int32)
+import           Data.Map                   (Map)
+import qualified Data.Map                   as M
+import qualified Data.SafeCopy              as SC
+import qualified Data.Serialize             as SL
 import           Prelude
 -------------------------------------------------------------------------------
-import           Database.Cassandra.Basic    hiding (KeySelector (..), delete,
-                                              get, getCol, getMulti)
-import qualified Database.Cassandra.Basic    as CB
+import           Database.Cassandra.Basic   hiding (KeySelector (..), delete,
+                                             get, getCol, getMulti)
+import qualified Database.Cassandra.Basic   as CB
 import           Database.Cassandra.Pack
 import           Database.Cassandra.Types
 -------------------------------------------------------------------------------
@@ -426,7 +426,7 @@ paginate
   -> Selector
   -- ^ 'Range' selector to initially and repeatedly apply.
   -> ConsistencyLevel
-  -> RetrySettings
+  -> RetryPolicy
   -- ^ Retry strategy for each underlying Cassandra call
   -> m (PageResult m (k, a))
 paginate m cf k rng@(Range _ to ord per) cl retry = do
@@ -458,7 +458,7 @@ paginateSource
     -> RowKey
     -> Selector
     -> ConsistencyLevel
-    -> RetrySettings
+    -> RetryPolicy
     -> Source m (k, a)
 paginateSource m cf k rng cl r = do
     buf <- lift $ paginate m cf k rng cl r
