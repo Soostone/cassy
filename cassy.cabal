@@ -1,5 +1,5 @@
 Name:                cassy
-Version:             0.7.1
+Version:             0.7.2
 Synopsis:            A high level driver for the Cassandra datastore
 License:             BSD3
 License-file:        LICENSE
@@ -79,7 +79,7 @@ Library
     , bytestring
     , cassandra-thrift     >= 0.8
     , cereal
-    , conduit              >= 1.1 && < 1.2
+    , conduit              >= 1.1 && < 1.3
     , containers
     , data-default
     , errors
