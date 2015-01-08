@@ -248,12 +248,18 @@ instance Exception CassandraException
 -- resolved after a retry. So they are good candidates for 'retrying'
 -- queries.
 casRetryH :: Monad m => Int -> Handler m Bool
-casRetryH = const $ Handler $ \ e -> return $
-    case e of
+casRetryH = const $ Handler $ return . casShouldRetry
+
+
+-------------------------------------------------------------------------------
+-- | Whether we recommend that you retry a given exception.
+casShouldRetry :: CassandraException -> Bool
+casShouldRetry e = case e of
       UnavailableException{} -> True
       TimedOutException{} -> True
       SchemaDisagreementException{} -> True
       _ -> False
+
 
 
 -- | 'IOException's should be retried
