@@ -417,7 +417,7 @@ col2val _ _ = error "col2val is not implemented for SuperColumns"
 -- given 'Selector'. The 'Selector' must be a 'Range' selector, or
 -- else this funtion will raise an exception.
 paginate
-  :: (MonadCassandra m, MonadCatch m, CasType k)
+  :: (MonadCassandra m, MonadMask m, CasType k)
   => Marshall a
   -- ^ Serialization strategy
   -> ColumnFamily
@@ -452,7 +452,7 @@ pageToSource (PMore as m) = C.sourceList as >> lift m >>= pageToSource
 -------------------------------------------------------------------------------
 -- | Just like 'paginate', but we instead return a conduit 'Source'.
 paginateSource
-    :: (CasType k, MonadCassandra m, MonadCatch m)
+    :: (CasType k, MonadCassandra m, MonadMask m)
     => Marshall a
     -> ColumnFamily
     -> RowKey
