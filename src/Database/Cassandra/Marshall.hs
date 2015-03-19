@@ -5,6 +5,7 @@
 {-# LANGUAGE NamedFieldPuns            #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE PatternGuards             #-}
+{-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
