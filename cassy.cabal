@@ -87,7 +87,7 @@ Library
     , mtl
     , network
     , resource-pool
-    , retry                >= 0.6 && < 0.7
+    , retry                >= 0.6 && < 0.8
     , safecopy
     , stm
     , syb
