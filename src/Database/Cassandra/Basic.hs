@@ -394,4 +394,4 @@ retryCas :: (MonadMask m, MonadIO m)
          -> m a
          -- ^ Action to perform
          -> m a
-retryCas set f = R.recovering set [casRetryH, networkRetryH] f
+retryCas set f = R.recovering set [casRetryH, networkRetryH] (const f)

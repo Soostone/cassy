@@ -247,7 +247,7 @@ instance Exception CassandraException
 -- | Exception handler that returns @True@ for errors that may be
 -- resolved after a retry. So they are good candidates for 'retrying'
 -- queries.
-casRetryH :: Monad m => Int -> Handler m Bool
+casRetryH :: Monad m => a -> Handler m Bool
 casRetryH = const $ Handler $ return . casShouldRetry
 
 
@@ -263,7 +263,7 @@ casShouldRetry e = case e of
 
 
 -- | 'IOException's should be retried
-networkRetryH :: Monad m => Int -> Handler m Bool
+networkRetryH :: Monad m => a -> Handler m Bool
 networkRetryH = const $ Handler $ \ (_ :: IOException) -> return True
 
 
