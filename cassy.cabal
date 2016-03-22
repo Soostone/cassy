@@ -74,7 +74,7 @@ Library
     , Thrift               >= 0.6
     , aeson
     , async
-    , attoparsec           >= 0.10 && < 0.13
+    , attoparsec           >= 0.10 && < 0.14
     , binary
     , bytestring
     , cassandra-thrift     >= 0.8
