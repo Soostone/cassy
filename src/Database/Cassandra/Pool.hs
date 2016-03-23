@@ -1,7 +1,8 @@
-{-# LANGUAGE NamedFieldPuns  #-}
-{-# LANGUAGE PackageImports  #-}
-{-# LANGUAGE PatternGuards   #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NamedFieldPuns   #-}
+{-# LANGUAGE PackageImports   #-}
+{-# LANGUAGE PatternGuards    #-}
+{-# LANGUAGE RecordWildCards  #-}
 
 module Database.Cassandra.Pool
     ( CPool
@@ -22,20 +23,29 @@ import           Control.Applicative                        ((<$>))
 import           Control.Arrow
 import           Control.Concurrent
 import           Control.Concurrent.STM
-import           Control.Exception                          (SomeException, handle, onException)
-import           Control.Monad                              (forM_, forever, join, liftM2, unless, when)
+import           Control.Exception                          (SomeException,
+                                                             handle,
+                                                             onException)
+import           Control.Monad                              (forM_, forever,
+                                                             join, liftM2,
+                                                             unless, when)
 import           Data.ByteString                            (ByteString)
-import           Data.List                                  (find, nub, partition)
+import           Data.List                                  (find, nub,
+                                                             partition)
 import           Data.Maybe
 import           Data.Pool
 import           Data.Set                                   (Set)
 import qualified Data.Set                                   as S
-import           Data.Time.Clock                            (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
+import           Data.Time.Clock                            (NominalDiffTime,
+                                                             UTCTime,
+                                                             diffUTCTime,
+                                                             getCurrentTime)
 import qualified Database.Cassandra.Thrift.Cassandra_Client as C
 import qualified Database.Cassandra.Thrift.Cassandra_Types  as C
 import           Network
 import           Prelude                                    hiding (catch)
-import           System.IO                                  (Handle(..), hClose)
+import           System.IO                                  (Handle (..),
+                                                             hClose)
 import           System.Mem.Weak                            (addFinalizer)
 import           Thrift.Protocol.Binary
 import           Thrift.Transport
@@ -72,7 +82,7 @@ type KeySpace = String
 data Cassandra = Cassandra {
     cHandle :: Handle
   , cFramed :: FramedTransport Handle
-  , cProto :: BinaryProtocol (FramedTransport Handle)
+  , cProto  :: BinaryProtocol (FramedTransport Handle)
 }
 
 
@@ -117,8 +127,8 @@ createCassandraPool servers numStripes perStripe maxIdle ks = do
 
       -- we need a temporary removal system for servers; something
       -- with a TTL just removing them from ring is dangerous, what if
-      -- the network is partitioned for a little while? 
-      
+      -- the network is partitioned for a little while?
+
       -- modifyServers sring (removeServer server)
 
       -- wait 100ms to avoid crazy loops
@@ -172,8 +182,8 @@ type ServerRing = TVar (Ring Server)
 ------------------------------------------------------------------------------
 data Ring a = Ring {
     allItems :: Set a
-  , current :: !a
-  , used :: [a]
+  , current  :: !a
+  , used     :: [a]
   , upcoming :: [a]
   }
 

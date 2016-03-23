@@ -230,7 +230,7 @@ modify Marshall{..} cf k cn rcl wcl f =
     case res of
       Nothing              -> execF Nothing
       Just Column{..}      -> execF (hush $ marshallDecode colVal)
-      Just SuperColumn{..} -> throwM $
+      Just SuperColumn{} -> throwM $
         OperationNotSupported "modify not implemented for SuperColumn"
 
 

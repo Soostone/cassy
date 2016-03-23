@@ -163,7 +163,7 @@ modify cf k cn rcl wcl f =
     case res of
       Nothing              -> execF Nothing
       Just Column{..}      -> execF (unMarshallJSON' colVal)
-      Just SuperColumn{..} -> throw $
+      Just SuperColumn{} -> throw $
         OperationNotSupported "modify not implemented for SuperColumn"
 
 
